@@ -1,26 +1,23 @@
 package Elive::Entity::Meeting;
 use warnings; use strict;
 
+use Mouse;
+
+use Elive::Entity;
 use base qw{ Elive::Entity };
-use Moose;
 
 =head1 NAME
 
 Elive::Entity::Meeting - Elluminate Meeting instance class
 
-=head2 DESCRIPTION
-
-=head2 BUGS & LIMITATIONS
-
-Seems that privateMeeting gets ignored on Ellluminate Live 9 & 9.1. If you
-try to set it the readback check may fail.
-
 =cut
+
 
 __PACKAGE__->entity_name('Meeting');
 __PACKAGE__->collection_name('Meetings');
 
-has 'meetingId' => (is => 'rw', isa => 'Pkey', required => 1);
+has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
+__PACKAGE__->primary_key('meetingId');
 
 has 'password' => (is => 'rw', isa => 'Str',
 		   documentation => 'optional meeting password');
@@ -41,6 +38,10 @@ has 'end' => (is => 'rw', isa => 'Int', required => 1,
 has 'name' => (is => 'rw', isa => 'Str', required => 1,
 	       documentation => 'meeting name',
     );
+
+=head1 METHODS
+
+=cut
 
 =head2 list_user_meetings_by_date
 
@@ -87,13 +88,116 @@ sub list_user_meetings_by_date {
 			  %opt,
 	);
 }
-    
+
+=head2 meeting_url
+
+Utility method to return various website url's for the meeting. This is
+available as both class level and object level methods.
+
+=head3 Examples
+
+    #
+    # Class level access. This may save an unessesary fetch.
+    #
+    my $url = Elive::Entity::Meeting->meeting_url(
+                     meeting_id => $meeting_id,
+                     action => 'join',    # join|edit|...
+                     connection => $my_connection);  # optional
+
+
+    #
+    # Object level.
+    #
+    my $meeting = Elive::Entity::Meeting->retrieve($meeting_id);
+    my $url = meeting->meeting_url(action => 'join');
+
+=cut
+
+sub meeting_url {
+    my $self = shift;
+    my %opt = @_;
+
+    my $meeting_id = $opt{meeting_id};
+    my $connection = ($opt{connection}
+		      || $self->connection);
+
+    if (ref($self)) {
+	#
+	# dealing with an object
+	#
+	$meeting_id ||= $self->meetingId;
+    }
+
+    die "no meeting_id given"
+	unless $meeting_id;
+
+    die "not connected"
+	unless $connection;
+
+    my $url = $connection->url;
+
+    $url =~ s{ / (\Q'webservice.event\E)? $ } {}x;
+
+    my %Actions = (
+	'join'   => '%s/join_meeting.html?meetingId=%ld',
+	'edit'   => '%s/modify_meeting.event?meetingId=%ld',
+	'delete' => '%s/delete_meeting?meetingId=%ld',
+	);
+
+    my $action = $opt{action} || 'join';
+
+    die "unrecognised action: $action"
+	unless exists $Actions{$action};
+
+    return sprintf($Actions{$action},
+		   $url, $meeting_id);
+}
+
+=head2 add_preload
+
+    my $meeting = Elive::Entity::Meeting->retrieve($meeting_id);
+    $meeting->add_preload($preload_id);
+
+Associate a preload with a meeting
+
+=head3 See also
+
+    Elive::Entity::Preload
+
+=cut
+
+sub add_preload {
+    my $self = shift;
+    my %opt = @_;
+
+    my $meeting_id = $opt{meeting_id};
+    $meeting_id ||= $self->meetingId
+	if ref($self);
+
+    die "Unable to determine meeting_id"
+	unless $meeting_id;
+
+    my $preload_id = $opt{preload_id};
+
+    die "unabe to determine prelod_id"
+	unless $preload_id;
+
+
+    my $adapter = $self->check_adapter('addMeetingPreload');
+
+    my $som = $self->connection->call($adapter,
+				      meetingId => $meeting_id,
+				      preloadId => $preload_id,
+	);
+
+    $self->_check_for_errors($som);
+}
 
 sub _freeze {
     my $class = shift;
     my $data = shift;
     #
-    # Meetings are stored as 'facilitor'
+    # facilitor -> facilitatorId
     #
     my $frozen = $class->SUPER::_freeze($data, @_);
 
@@ -138,5 +242,12 @@ sub _thaw {
 
     return $data;
 }
+
+=head1 BUGS & LIMITATIONS
+
+Seems that privateMeeting gets ignored on update for Elluminate Live 9 & 9.1.
+If you try to set it the readback check may fail.
+
+=cut
 
 1;

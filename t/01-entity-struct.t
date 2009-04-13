@@ -1,21 +1,14 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 13;
+use Test::More tests => 14;
 use Test::Warn;
 
-package Elive::Connection::TestStub;
-
-sub url {return 'http://elive.test.org/test'};
-
-########################################################################
-
-package main;
-
 BEGIN {
-	use_ok( 'Elive::Entity::ParticipantList' );
+    use_ok( 'Elive::Connection' );
+    use_ok( 'Elive::Entity::ParticipantList' );
 };
 
-my $connection_stub = bless {}, 'Elive::Connection::TestStub';
+Elive->connection(Elive::Connection->new('http://test.org'));
 
 my $participant_list = Elive::Entity::ParticipantList->construct(
     {
@@ -36,7 +29,6 @@ my $participant_list = Elive::Entity::ParticipantList->construct(
 	    
 	    ],
     },
-    connection => $connection_stub,
     );
 
 isa_ok($participant_list, 'Elive::Entity::ParticipantList', 'participant');
@@ -57,8 +49,10 @@ ok($participants->[0]->role eq '2', 'role stringified');
 
 ok($participants->[0] eq '123456=2', 'particpiant stringified');
 
-ok($participants eq '112233=3;123456=2',
+ok($participants->stringify eq '112233=3;123456=2',
    'participants sorting and stringification');
+
+diag "participants: ".$participants->stringify;
 
 ok($participant_list->participants->[0]->user->loginName eq 'test_user',
    'dereference');

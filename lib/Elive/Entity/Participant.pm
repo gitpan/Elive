@@ -1,8 +1,9 @@
 package Elive::Entity::Participant;
 use warnings; use strict;
 
-use Moose;
+use Mouse;
 
+use Elive::Struct;
 use base qw{Elive::Struct};
 
 use Elive::Entity::User;
@@ -11,10 +12,14 @@ use Elive::Entity::Role;
 __PACKAGE__->entity_name('Participant');
 
 has 'user' => (is => 'rw', isa => 'Elive::Entity::User',
-	       documentation => 'User attending the meeting');
+	       documentation => 'User attending the meeting',
+	       coerce => 1,
+    );
 
 has 'role' => (is => 'rw', isa => 'Elive::Entity::Role',
-	       documentation => 'Role of the user within this meeting');
+	       documentation => 'Role of the user within this meeting',
+	       coerce => 1,
+    );
 
 =head1 NAME
 
@@ -31,7 +36,18 @@ Elive::Entity::ParticpiantList
 
 =cut
 
-sub _stringify_self {
+=head1 METHODS
+
+=cut
+
+=head2 stringify
+
+Returns a string of the form userId=role. This value is used for
+comparisions, sql display, etc...
+
+=cut
+
+sub stringify {
 
     my $self = shift;
 
@@ -40,32 +56,6 @@ sub _stringify_self {
     #
 
     return $self->user.'='.$self->role;
-}
-
-sub _destringify {
-    my $class = shift;
-
-    #
-    # inverse of stringification. resubstantiate the object.
-    #
-
-    my $string = shift;
-
-    die "not in format: <user_id>=<rold_id>: $string"
-	unless ($string && $string =~ m{^[0-9]+=[0-9]+$});
-
-    my ($user_id, $role_id) = split('=', $string);
-
-    my $user = Elive::Entity::User->retrieve($user_id)
-	or die "no such user: $user_id";
-
-    return __PACKAGE__->construct
-	({
-	    user => $user,
-	    role => {
-		roleId => $role_id,
-	    }
-	 });
 }
 
 1;

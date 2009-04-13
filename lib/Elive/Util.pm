@@ -12,39 +12,31 @@ Elive::Util - utility functions for Elive
 
 =cut
 
+=head1 METHODS
+
+=cut
+
 =head2 parse_type
 
-   my $user_types = Elive::Entity::User->property_types
+   my $att = $my_class->meta->get_attribute_map->{foo};
 
-   my ($type,
-       $is_array,
-       $is_entity,
-       $is_pkey) = Elive::Util::parse_type($user_types->{role})
+   my ($is_array,
+       $is_entity) = Elivey::Util::parse_type($att->type_constraint)
 
-   if ($is_entity) {
-       my $sub_types = $type->property_types
-       ...
-    }
-
-Analyses an entity property type.
+Parses an entity property type. Determines whether it is an array and/or
+sub-structure.
 
 =cut
 
 sub parse_type {
     my $type = shift;
 
-    my $is_array = ($type =~ s{^ArrayRef\[(.*?)\]$}{$1});
-    #
-    # Note: Elive::Entity is a subclass of Elive::Struct
-    #
-    my $is_entity = UNIVERSAL::isa($type, 'Elive::Struct')
+    my $is_array = ($type =~ s{^ArrayRef\[(.*?)\]$}{$1})
 	||  UNIVERSAL::isa($type, 'Elive::Array');
 
-    my $is_pkey = ($type =~ s{^pkey}{}i);
+    my $is_struct = UNIVERSAL::isa($type, 'Elive::Struct');
 
-    $type = 'Int' if ($is_pkey && $type eq '');
-
-    return ($type, $is_array, $is_entity, $is_pkey);
+    return ($type, $is_array, $is_struct);
 }
 
 =head2 prompt

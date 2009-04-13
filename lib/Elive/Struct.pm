@@ -1,83 +1,95 @@
 package Elive::Struct;
 use warnings; use strict;
 
-use Moose;
-use Moose::Util::TypeConstraints;
+use Elive;
+use base qw{Elive};
 
-=head1 NAME 
+use overload
+    '""' =>
+    sub {shift->stringify}, fallback => 1;
 
-Elive::Entity::Struct - Entity class for structures
+use Elive::Array;
+
+BEGIN {
+    __PACKAGE__->mk_classdata('_entities' => {});
+    __PACKAGE__->mk_classdata('_entity_name');
+    __PACKAGE__->mk_classdata('_primary_key', []);
+    __PACKAGE__->mk_classdata('collection_name');
+};
+
+use Scalar::Util;
+
+sub _refaddr {
+    return Scalar::Util::refaddr( shift() );
+}
+
+=head1 NAME
+
+Elive::Struct - Base class for entities and simple structures
 
 =head1 DESCRIPTION
 
-This is a base class for entities which cannot be accesses directly
-but appear with other returned classes.
+Base class for sub-structures within entities, eg Elive::Entity::Role.
+This is also used as a base class for Elive::Entity.
 
 =cut
 
-use base qw{Elive};
+=head1 METHODS
 
-use Elive::Array;
-use Elive::Util;
+=cut
 
-BEGIN {
+=head2 stringify
 
-    __PACKAGE__->mk_classdata('_entities' => {});
-    __PACKAGE__->mk_classdata('_entity_name');
-    __PACKAGE__->mk_classdata('collection_name');
+Return a human readable string representation of an object.
 
-    subtype 'Pkey' => as 'Int'
-	=> where {$_ > 0}
-    ;
+=cut
 
-    subtype 'PkeyStr' => as 'Str'
-	=> where {length($_)}
-};
-
-use overload
-        '""'     => sub { shift->_stringify_self },
-        fallback => 1;
-
-sub _stringify {
+sub _stringify_class {
         my $class = shift;
 	my @pkey_data = @_;
 
         return join "/", @pkey_data;
 }
 
-sub _destringify {
-    my $class = shift;
-    my $string = shift;
-    #
-    # inverse of stringification. convert back to an object
-    #
-    my @pkey_data = split('/', $string);
-    return $class->retrieve(@pkey_data);
+sub stringify {
+
+    if (my $class = ref($_[0])) {
+	my $self = shift;
+	$class->_stringify_class($self->id);
+    }
+    else {
+	my $class = shift;
+	$class->_stringify_class(@_);
+    }
 }
 
-sub _stringify_self {
-    my $self = shift;
-    return $self->_stringify($self->id);
-}
 
-sub _refaddr {
-    return Scalar::Util::refaddr( shift() );
-}
+=head2 entity_name
 
-=head2 primary_key
-
-    Return primary key field names(s) for this entity class
-
-    my @pkey = Elive::Entity::User->primary_key
+    my $entity_name = MyApp::Entity::User->entity_name
+    ok($entity_name eq 'user');
 
 =cut
 
-sub primary_key {
-    my $class = shift;
+sub entity_name {
+    my $entity_class = shift;
 
-    return (map {$_->accessor}
-	    grep {$_->{isa} =~ m{pkey}i}
-	    $class->_ordered_attributes);
+    if (my $entity_name = shift) {
+
+	#
+	# Set our entity name. Register it in our parent
+	#
+	$entity_class->_entity_name(ucfirst($entity_name));
+
+	my $entities = $entity_class->_entities;
+
+	die "Entity $entity_name redeclared "
+	    if exists $entities->{$entity_name};
+
+	$entities->{lcfirst($entity_name)} = $entity_class;
+    }
+
+    return $entity_class->_entity_name;
 }
 
 =head2 id
@@ -93,38 +105,29 @@ sub id {
     return map {$self->$_} ($self->primary_key );
 }
 
-=head2 entity_name
+=head2 primary_key
 
-    my $entity_name = Elive::Entity::User->entity_name
-    ok($entity_name eq 'user');
+    Setter/getter for primary key field(s) for this entity class
+
+    my @pkey = MyApp::Entity::User->primary_key
 
 =cut
 
-sub entity_name {
+sub primary_key {
     my $entity_class = shift;
 
-    if (my $entity_name = shift) {
+    if (@_) {
 
-	#
-	# Set our entity name. Register it in our parent
-	#
+	$entity_class->_primary_key([@_]);
 
-	$entity_class->_entity_name(ucfirst($entity_name));
-
-	my $entities = $entity_class->_entities;
-
-	die "Entity $entity_name redeclared "
-	    if exists $entities->{$entity_name};
-
-	$entities->{lcfirst($entity_name)} = $entity_class;
     }
 
-    return $entity_class->_entity_name;
+    return @{$entity_class->_primary_key};
 }
 
 =head2 entities
 
-    my $entities = Elive::Entity->entities
+    my $entities = Entity::Entity->entities
 
     print "user has entity class: $entities->{user}\n";
     print "meetingParticipant entity class has not been loaded\n"
@@ -140,20 +143,44 @@ sub entities {
     return $entity_class->_entities;
 }
 
+
+sub _ordered_attribute_names {
+    my $class = shift;
+
+    my %order;
+    my $rank;
+    #
+    # Put primary key fields at the top
+    #
+    foreach ($class->primary_key) {
+	$order{$_} = ++$rank;
+    }
+
+    #
+    # Sort remaining field alphabetically
+    #
+    my $atts = $class->meta->get_attribute_map;
+
+    foreach (sort keys %$atts) {
+	$order{$_} = ++$rank
+	    unless exists $order{$_};
+    }
+
+    return sort {$order{$a} <=> $order{$b}} (keys %order);
+}
+
 sub _ordered_attributes {
     my $class = shift;
 
     my $meta = $class->meta;
+    my $atts = $meta->get_attribute_map;
 
-    #
-    # I'm not sure if there's a less clunky way of ordering attributes
-    #
-    sort {$a->definition_context->{line} <=> $b->definition_context->{line}} $meta->get_all_attributes
+    return map {$atts->{$_}} ($class->_ordered_attribute_names);
 }
 
 =head2 properties
 
-   my @properties = Elive::Entity::User->properties;
+   my @properties = MyApp::Entity::User->properties;
 
 Return the property accessor names for an entity
 
@@ -161,36 +188,33 @@ Return the property accessor names for an entity
 
 sub properties {
     my $class = shift;
-    return map {$_->accessor} ($class->_ordered_attributes);
+    return map {$_->name} ($class->_ordered_attributes);
 }
 
 =head2 property_types
 
-   my $user_types = Elive::Entity::User->property_types;
+   my $user_types = MyApp::Entity::User->property_types;
    my ($type,
        $is_array,
-       $is_entity,
-       $is_pkey) = Elive::Util::parse_type($user_types->{role})
+       $is_data) = Elive::Util::parse_type($user_types->{role})
 
-Return a hashref of all the Moose types of properties. These may
-include:
-    'Int', 'Bool', 'Str', 'Pkey', 'PkeyStr', 'ArrayRef[Type]',
-    'Elive::Entity::User', 'Elive::Entity::Role'
-    'ArrayRef[Elive::Entity::Participant]'
+Return a hashref of attribute data types.
 
 =cut
 
 sub property_types {
     my $class = shift;
 
+    my $atts = $class->meta->get_attribute_map;
+
     return {
-	map {$_->accessor => $_->{isa}} ($class->_ordered_attributes)
+	map {$_ => $atts->{$_}->type_constraint} (keys %$atts)
     };
 }
 
 =head2 property_doco
 
-    my $user_doc = Elive::Entity::User->property_doc
+    my $user_doc = MyApp::Entity::User->property_doc
     my $user_password_doco = $user_doc->{loginPassword}
 
 Return a hashref of documentation for properties
@@ -201,162 +225,49 @@ sub property_doco {
     my $class = shift;
 
     return {
-	map {$_->accessor => $_->documentation} ($class->_ordered_attributes)
+	map {$_->name => $_->{documentation}} ($class->_ordered_attributes)
     };
 }
 
-sub _cmp_col {
+=head2 set
 
-    #
-    # Compare two values for a property 
-    #
+    $obj->set(prop1 => val1, prop2 => val2 [,...])
 
-    my $class = shift;
-    my $col = shift;
-    my $_v1 = shift;
-    my $_v2 = shift;
-
-    return undef
-	unless (defined $_v1 && defined $_v2);
-
-    my $cmp;
-
-    my ($type, $is_array, $is_entity) = Elive::Util::parse_type($class->property_types->{$col});
-    my @v1 = ($is_array? @$_v1: ($_v1));
-    my @v2 = ($is_array? @$_v2: ($_v2));
-
-    if ($is_entity) {
-	#
-	# Normalise objects and references to simple strings
-	#
-	for (@v1, @v2) {
-	    #
-	    # autobless references
-	    if (_refaddr($_)) {
-
-		$_ = $type->construct(Elive::Util::_clone($_))
-		    unless (Scalar::Util::blessed($_));
-
-		$_ = $_->_stringify_self;
-	    }
-	}
-    }
-
-    @v1 = sort @v1;
-    @v2 = sort @v2;
-
-    #
-    # unequal arrays lengths => unequal
-    #
-
-    $cmp ||= scalar @v1 <=> scalar @v2;
-
-    if ($cmp) {
-    }
-    elsif (scalar @v1 == 0) {
-
-	#
-	# Empty arrays => equal
-	#
-
-	$cmp = undef;
-    }
-    else {
-	#
-	# compare values
-	#
-	for (my $i = 0; $i < @v1; $i++) {
-
-	    my $v1 = $v1[$i];
-	    my $v2 = $v2[$i];
-
-	    if ($is_entity || $type =~ m{Str}i) {
-		# string comparision. works on simple strings and
-		# stringified entities.
-		# 
-		$cmp ||= $v1 cmp $v2;
-	    }
-	    elsif ($type =~ m{Bool}i) {
-		# boolean comparison
-		$cmp ||= ($v1? 1: 0) <=> ($v2? 1: 0);
-	    }
-	    elsif ($type =~ m{Int}i) {
-		# int comparision
-		$cmp ||= $v1 <=> $v2
-	    }
-	    else {
-		die "$col has unknown type: $type";
-	    }
-	}
-    }
-    return $cmp;
-}
-
-=head2 construct
-
-    my $participant = Elive::Entity::Participant->construct(
-         {user => {userId => 123456, loginName => 'test_user',
-          role => {roled => 2}
-    );
-
-Construct a derived entity fronm data.
+Assign values to entity properties.
 
 =cut
 
-sub construct {
-    #
-    # Recursively bless any sub-entities in the current struct;
-    my $class = shift;
-    my $obj = shift;
-    my %opt = @_;
+sub set {
+    my $self = shift;
+    my %data = @_;
 
-    my $types = $class->property_types;
-    my @properties = $class->properties;
+    my %entity_column = map {$_ => 1} ($self->properties);
+    my %primary_key = map {$_ => 1} ($self->primary_key);
 
-    foreach my $name (keys %$obj) {
+    foreach (keys %data) {
 
-	#
-	# warn rather than barfing . Better option for forward compatiability
-	# with future SDK releases
-	#
-	unless (exists $types->{$name}) {
-	    warn "unknown property: $name, discarding";
-	    delete $obj->{$name};
-	    next;
-	}
+       if ($entity_column{$_}) {
 
-	my ($type, $is_array, $is_entity)
-	    = Elive::Util::parse_type($types->{$name});
+           if (exists $primary_key{ $_ }) {
 
-	foreach ($obj->{$name}) {
+               my $old_val = $self->{$_};
 
-	    my $val_type = Elive::Util::_reftype($_) || 'Scalar';
+               if (defined $old_val && !defined $data{$_}) {
+                   die "attempt to delete primary key";
+               }
+               elsif ($self->_cmp_col($old_val, $data{$_})) {
+                   die "attempt to update primary key";
+               }
+           }
 
-	    if ($is_array) {
-		die "col: $name: expected ARRAY, found $val_type"
-		    unless ($val_type eq 'ARRAY');
-		bless $_, 'Elive::Array';
-	    }
-
-	    for ($is_array? @$_: $_) {
-
-		my $refaddr = _refaddr($_);
-
-##	    warn "name:$name, type:$type, refaddr: $refaddr, conn: $opt{connection}";
-
-		if ($is_entity && $refaddr) {
-			#
-			# stantiate a database object. Unify addresses
-			# so that we have only a single copy in memory
-			# at any one time.
-			#
-		    $_ = $type->construct($_, %opt);
-		}
-	    }
-	}
+           $self->{$_} = $data{$_};
+       }
+       else {
+           die "no such column: $_";
+       }
     }
 
-    return bless $obj, $class;
+    return $self;
 }
 
 1;

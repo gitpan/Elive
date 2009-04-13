@@ -1,33 +1,28 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 6;
+use Test::More tests => 7;
 use Test::Warn;
-
-package Elive::Connection::TestStub;
-
-sub url {return 'http://elive.test.org/test'};
-
-########################################################################
 
 package main;
 
 BEGIN {
-	use_ok( 'Elive::Entity::Group' );
-	use_ok( 'Elive::Entity::ParticipantList' );
+    use_ok( 'Elive::Connection' );
+    use_ok( 'Elive::Entity::Group' );
+    use_ok( 'Elive::Entity::ParticipantList' );
 };
 
 use Scalar::Util;
 
-my $connection_stub = bless {}, 'Elive::Connection::TestStub';
+Elive->connection(Elive::Connection->new('http://test.org'));
 
 my $group = Elive::Entity::Group->construct(
     {
 	groupId => 111111,
+	name => 'test group',
 	members => [
 	    123456, 112233
 	    ]
     },
-    connection => $connection_stub,
     );
 
 isa_ok($group, 'Elive::Entity::Group', 'group');
@@ -36,11 +31,9 @@ ok($group->members->[1] == 112233, 'can access group members');
 my $user1 =  Elive::Entity::User->construct(
     {userId => 11111,
      loginName => 'pete'},
-    connection => $connection_stub,
     );
 
 my $user1_again = Elive::Entity::User->retrieve([11111],
-    connection => $connection_stub,
     reuse => 1);
 
 ok(_same_ref($user1, $user1_again), 'basic entity reuse');
@@ -48,7 +41,6 @@ ok(_same_ref($user1, $user1_again), 'basic entity reuse');
 my $user2 =  Elive::Entity::User->construct(
     {userId => 22222,
      loginName => 'pete'},
-    connection => $connection_stub,
     );
 
 _dump_objs();
@@ -72,7 +64,6 @@ my $participant_list = Elive::Entity::ParticipantList->construct(
 	    
 	    ],
     },
-    connection => $connection_stub,
     );
 
 _dump_objs();
@@ -84,7 +75,7 @@ ok(_same_ref($user2, $user2_again), 'nested reuse');
 ########################################################################
 
 sub _dump_objs {
-    my $live_objects = \%Elive::Entity::Elive_Objects;
+    my $live_objects = Elive::Entity->live_entities;
 
     print "Elive Objects:\n";
     foreach (keys %$live_objects) {

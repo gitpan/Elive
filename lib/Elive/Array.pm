@@ -1,60 +1,52 @@
 package Elive::Array;
+use warnings; use strict;
+use Mouse;
+
+use Elive;
+use base qw{Elive};
+
+=head1 NAME
+
+Elive::Array - base class for arrays
+
+=head1 DESCRIPTION
+
+Base class for arrays within entities. E.g. members property of
+Elive::Entity::participantList.
+
+=cut
 
 use overload
-        '""'     => sub { shift->_stringify_self },
-        fallback => 1;
+    '""' =>
+    sub {shift->stringify}, fallback => 1;
 
-sub _stringify_self {
+=head1 METHODS
+
+=cut
+
+=head2 stringify
+
+Stringifies arrays members by joining their sting values with ';'.
+
+=cut
+
+sub stringify {
     my $self = shift;
-
+    my $arr = shift || $self;
     #
     # Rely on sub entities stringifying and sorting correctly
     #
-    return join(';', sort @$self);
+    return join(';', sort map {UNIVERSAL::can($_,'stringify')? $_->stringify: $_} @$arr);
 }
 
-=head2 add
+=head2 new
 
-    my @added = $arr->add(10, 20, 30);
-
-Convenience function to add elements to an array
+   my $array_obj = Elive::Array->new($array_ref);
 
 =cut
 
-sub add {
-    my $self = shift;
-
-    my %members;
-    @members{@_} = undef;
-
-    foreach (@$self) {
-	delete $members{$_};
-    }
-
-    push (@$self, keys %members);
-
-    return keys %members;
+sub new {
+    return bless($_[1] || [], $_[0]);
 }
-
-=head2 delete
-
-    $arr->delete(20, 40, 60);
-
-Convenience function to delete elements to an array
-
-=cut
-
-sub delete {
-    my $self = shift;
-
-    my %members;
-    @members{@_} = undef;
-
-    my @out = grep {!exists $members{$_}} @$self;
-
-    @$self = @$out;
-}
-
 
 1;
-

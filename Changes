@@ -1,5 +1,13 @@
 Revision history for Elive
 
+0.02    14th April
+        New Entities:
+        - Elive::Entity::Preload
+        - Elive::Entity::MeetingPreloads
+        New Scripts
+        - elive_raise_meeting
+        - elive_lint_config
+
 0.01    14th February
         First version.
 

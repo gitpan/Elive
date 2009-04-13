@@ -1,8 +1,9 @@
 package Elive::Entity::Role;
 use warnings; use strict;
+use Mouse;
 
+use Elive::Struct;
 use base qw{Elive::Struct};
-use Moose;
 
 =head1 NAME
 
@@ -16,15 +17,7 @@ This is a structural class for Elive roles.
 
 __PACKAGE__->entity_name('Role');
 
-has 'roleId' => (is => 'rw', isa => 'Pkey', required => 1);
-
-sub _destringify {
-    my $class = shift;
-    my $role_id = shift;
-
-    return {
-	roleid => sprintf("%d", $role_id || 0),
-    }
-}
+has 'roleId' => (is => 'rw', isa => 'Int', required => 1);
+__PACKAGE__->primary_key('roleId');
 
 1;

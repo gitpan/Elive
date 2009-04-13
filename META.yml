@@ -5,8 +5,10 @@ author:
 build_requires:
   Test::More: 0
   Test::Warn: 0
+configure_requires:
+  ExtUtils::MakeMaker: 6.30
 distribution_type: module
-generated_by: 'Module::Install version 0.77'
+generated_by: 'Module::Install version 0.81'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -17,18 +19,19 @@ no_index:
   directory:
     - inc
     - t
-recommends:
+requires:
   Carp: 0
+  Class::Accessor: 0
+  Class::Data::Inheritable: 0
   DateTime: 0
   DateTime::Format::ISO8601: 0
-requires:
-  Class::Data::Inheritable: 0
   File::Spec: 0
   Getopt::Long: 0
   HTML::Entities: 0
   IO::Prompt: 0
-  Moose: 0
-  Moose::Util::TypeConstraints: 0
+  Mouse: 0
+  Mouse::Util::TypeConstraints: 0
+  Pod::Usage: 0
   SOAP::Lite: 0.69
   Scalar::Util: 0
   Storable: 0
@@ -39,4 +42,4 @@ requires:
   perl: 5.005
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01
+version: 0.02

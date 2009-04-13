@@ -1,12 +1,17 @@
 package Elive::Entity::User;
-use Moose;
+use warnings; use strict;
+
+use Mouse;
+
+use Elive::Entity;
 use base qw{ Elive::Entity };
 
 __PACKAGE__->entity_name('User');
 __PACKAGE__->collection_name('Users');
 
-has 'userId' => (is => 'rw', isa => 'Pkey', required => 1,
+has 'userId' => (is => 'rw', isa => 'Int', required => 1,
 		 documentation => 'numeric identifier');
+__PACKAGE__->primary_key('userId');
 
 has 'deleted' => (is => 'rw', isa => 'Bool');
 
@@ -19,7 +24,8 @@ has 'email' => (is => 'rw', isa => 'Str',
 		documentation => 'users email address');
 
 has 'role' => (is => 'rw', isa => 'Elive::Entity::Role',
-	       documentation => 'default user role');
+	       documentation => 'default user role',
+	       coerce => 1);
 
 has 'firstName' => (is => 'rw', isa => 'Str', 
 		    documentation => 'users given name');
@@ -30,6 +36,10 @@ has 'lastName' => (is => 'rw', isa => 'Str',
 =head1 NAME
 
     Elive::Entity::User - Elluminate Users entity class
+
+=cut
+
+=head1 METHODS
 
 =cut
 

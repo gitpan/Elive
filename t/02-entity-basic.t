@@ -1,23 +1,16 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 25;
+use Test::More tests => 27;
 use Test::Warn;
 
-package Elive::Connection::TestStub;
-
-sub url {return 'http://elive.test.org/test'};
-
-########################################################################
-
-package main;
-
 BEGIN {
-	use_ok( 'Elive' );
-	use_ok( 'Elive::Entity' );
-	use_ok( 'Elive::Entity::User' );
+    use_ok( 'Elive' );
+    use_ok( 'Elive::Connection' );
+    use_ok( 'Elive::Entity' );
+    use_ok( 'Elive::Entity::User' );
 }
 
-my $connection_stub = bless {}, 'Elive::Connection::TestStub';
+Elive->connection(Elive::Connection->new('http://test.org'));
 
 my %user_props = (map {$_ => 1} Elive::Entity::User->properties);
 
@@ -36,12 +29,12 @@ my $user1 = Elive::Entity::User->construct({
 	loginPassword => $LOGIN_PASS,
 	role => {roleId => 0},
      },
-     connection => $connection_stub,
     );
 
 isa_ok($user1, 'Elive::Entity::User');
 ok($user1->userId ==  $USER_ID, 'user - userId accessor');
 ok($user1->loginName eq  $LOGIN_NAME, 'constructed user - loginName accessor');
+ok($user1->_db_data, 'user1 has db data');
 
 ok(!$user1->is_changed, 'is_changed returns false before change');
 
@@ -70,7 +63,6 @@ my $user2 = Elive::Entity::User->construct({
 	loginPassword => $LOGIN_PASS,
 	role => {roleId => 0},
      },
-     connection => $connection_stub,
     );
 
 ok($user2->userId ==  $USER_ID +2, 'second constructed user has correct userId value');
@@ -81,7 +73,6 @@ my $user3 = Elive::Entity::User->construct({
         loginName => $LOGIN_NAME .'_3',
         loginPassword => $LOGIN_PASS
       },
-      connection => $connection_stub,
     );
 
 ok(!$user3->is_changed, 'is_changed returns false after reconstruction');

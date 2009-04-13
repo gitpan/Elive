@@ -4,7 +4,7 @@ classroom server.
 You can, for example, use it to query or add users, create sessions, assign
 users as class participants and change server settings.
 
-This package has been tested against Elluminate Live versions 8.0 and 9.0.
+This package has been tested against Elluminate Live versions 9.0 thru 9.1.
 
 INSTALLATION
 
@@ -14,6 +14,82 @@ To install this module, run the following commands:
 	make
 	make test
 	make install
+
+POST INSTALLATION
+
+    elive_lint_config
+
+       This script will check for missing adapters.
+
+       It is recommended that you run this script on your configuration
+       files for each Elluminate site instance.
+
+       You'll probably want to copy the site configuration from the server
+       and run this script on it there.
+
+       For a Unix server the configration for path http://myserver/mysite/
+       should be found under:
+
+             /opt/ElluminateLive/manager/tomcat/webapps/mysite
+
+          or if its running from the server root http://myserver/:
+
+             /opt/ElluminateLive/manager/tomcat/webapps/ROOT
+
+          The actual configuration is then in the sub-path:
+
+	     WEB-INF/resources/configuration.xml
+
+          If any adapters are missing, the corresponding Elive calls
+          will return the error message 'Unable to determine a command
+          for the key Xxxxx'.
+
+          If you get this error, please check that your Elluminate Live
+          software is up-to-date. Ii you've installed all upgrades and
+          the SDK.
+
+          Its possible that you may need to edit the configuration file
+          manually to add the adapter.
+
+          You'll need to stop Elluminate services before editing.
+
+          For example, if elive_lint_conf returned the error:
+
+	      "missing adapter command: getUser"
+
+         Then this can be fixed by editing the config and adding an
+         entry for the adapter, e.g.if getUser is missing:
+
+	      <elm>
+                  ...
+                  <adapters>
+                     <adapter>
+                        ...
+                        <argument>
+                             <name>command:getUser</name>
+                             <value>com.elluminate.adapter.command.GetUserCommand</value>
+                         </argument>
+
+
+    elive_query
+
+        This is a simple shell that can be used to test basic access
+        to your Elluminate Live server
+
+        Usage is: elive_query --user SomeAdmin http://myserver/mysite
+
+	Where SomeAdmin is an Elluminate system adminstrator account.
+
+        Hopefully you should get:
+
+	    connecting to http://myserver/mysite...done
+            Elive query 0.nn - type 'help' for help
+            elive>
+
+        You can then try a simple query:
+
+            elive> select * from users
+
 
 SUPPORT AND DOCUMENTATION
 
@@ -49,3 +125,4 @@ Copyright (C) 2009 David Warring
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
+

@@ -1,16 +1,24 @@
 package Elive::Entity::ParticipantList;
 use warnings; use strict;
 
-use base qw{ Elive::Entity };
-use Moose;
+use Mouse;
+use Mouse::Util::TypeConstraints;
+
+use Elive::Entity;
+use base qw{Elive::Entity};
 
 use Elive::Entity::Participant;
 use Elive::Util;
 
 __PACKAGE__->entity_name('ParticipantList');
 
-has 'meetingId' => (is => 'rw', isa => 'Pkey', required => 1);
-has 'participants' => (is => 'rw', isa => 'ArrayRef[Elive::Entity::Participant]');
+has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
+__PACKAGE__->primary_key('meetingId');
+
+has 'participants' => (is => 'rw', isa => 'ArrayRef[Elive::Entity::Participant]',
+    coerce => 1);
+coerce 'ArrayRef[Elive::Entity::Participant]' => from 'ArrayRef[HashRef]'
+          => via {[ map {Elive::Entity::Participant->new($_) } @$_ ]};
 
 =head1 NAME
 
@@ -23,6 +31,41 @@ This is the entity class for meeting participants.
 The participants property is an array of Elive::Entity::Participant.
 
 =cut
+
+=head1 METHODS
+
+=cut
+
+=head2 construct
+
+    my $user2_obj = Elive::Entity::User->retrieve($user2_id);
+
+    my $participant_list = Elive::Entity::ParticipantList->construct(
+    {
+	meetingId => 123456,
+	participants => [
+	    {
+		user => {userId => 11111111,
+			 loginName => 'test_user',
+		},
+		role => {roleId => 2},
+	    },
+            $user2_obj,
+	    
+	    ],
+    },
+    );
+
+Construct a participant list from data.
+
+=cut
+
+sub construct {
+    my $self = shift->SUPER::construct(@_);
+    bless $self->participants, 'Elive::Array';
+    $self;
+}
+
 
 =head2 retrieve_all
 
@@ -65,8 +108,8 @@ sub _freeze {
 	    unless (Elive::Util::_reftype($participants) eq 'ARRAY');
 
 	my @users = map {
-	    my $str = UNIVERSAL::can($_,'_stringify_self')
-		? $_->_stringify_self
+	    my $str = UNIVERSAL::can($_,'stringify')
+		? $_->stringify
 		: $_;
 	} @$participants;
 
@@ -109,7 +152,7 @@ sub insert {
 	Elive::Util::_clone($data, copy => 1),
 	);
  
-    my $expected_participants = $data_image->participants->_stringify_self;
+    my $expected_participants = $data_image->participants->stringify;
     $data_image = undef;
 
     eval {
@@ -140,57 +183,38 @@ Update meeting participants
 
 =cut
 
-sub update {
-    my $self = shift;
-    my $data = shift;
-    my %opt = @_;
-
-    my $meeting_id = $self->meetingId;
-    my $expected_participants = $self->participants->_stringify_self;
-    my $participant_list;
-
-    eval {
-	$participant_list
-	    = $self->SUPER::update($data,
-				   adapter => 'setParticipantList',
-				   %opt );
-
-    };
-
-    if (my $err = @_) {
-	return ref($self)->__handle_response($err, $meeting_id,
-	    $expected_participants);
-    }
-
-    return $participant_list;
-}
-
-sub __handle_response {
+sub _readback_check {
     my $class = shift;
-    my $err = shift;
-    my $meeting_id = shift;
-    my $expected_participants;
+    my $updates = shift;
+    my $rows = shift;
+
     #
-    # sometimes get back an empty response from setPartipcantList
-    # if this happens abort the standard readback and reimplement
-    # our by re-retrieving the record and comparing against the
-    # the saved values.
-    # 
-    if ($meeting_id && $err =~ m{unexpected soap response}i) {
-	warn "warning: $err";
+    # sometimes get back an empty response from setParticantList
+    # if this happens Re-retreive the updates, then complete the readback.
+    #
+    unless (Elive::Util::_reftype($rows) eq 'ARRAY'
+	    && @$rows
+	    && (my $meeting_id = $updates->{meetingId})
+	) {
+
 	my $self = $class->retrieve([$meeting_id]);
 
 	die "unable to retrieve $class/$meeting_id"
 	    unless $self;
 
-	my $actual_participants = $self->participants->_stringify_self;
-	die "readback failed on participants:\nexpected $expected_participants\nactual: $actual_participants"
-	    unless $expected_participants eq $actual_participants;
+	$rows = [$self];
+    }
 
-    }
-    else {
-	die $err;
-    }
+    $class->SUPER::_readback_check($updates, $rows, @_);
 }
+
+=head2 list
+
+The list method is not available for participant lists. You'll need
+to retrieve on a meeting id.
+
+=cut
+
+sub list {shift->_not_available}
 
 1;

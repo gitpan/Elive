@@ -1,7 +1,5 @@
 package Elive;
-
-use warnings;
-use strict;
+use warnings; use strict;
 
 =head1 NAME
 
@@ -9,11 +7,18 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
+
+use Mouse;
+
+use Class::Data::Inheritable;
+use base qw{Class::Data::Inheritable};
+
+use Elive::Connection;
 
 =head1 SYNOPSIS
 
@@ -34,31 +39,22 @@ our $VERSION = '0.01';
 
     }
 
+    Elive->disconnect;
+
 =head1 DESCRIPTION
 
-This module provides class and object bindings to Elluminate Live
-SOAP/XML commands.
+Elluminate Live (c) is an online virtual classroom written in Java.
 
-It enables basic create/read/update and delete of Users, User Lists,
-Meetings and Meeting Participants.
+This module provides class and object bindings to Elluminate Live server
+via its SOAP/XML command interace.
 
-Elluminate Live (c) is a virtual classroom portal largely written in Java.
-Session particpants join the meeting via a Java portal back to a central
-server.
+You can use it to create/read/update and delete entities on an Elluminate
+site. This includes Users, User Groups, Meetings and Meeting Participants.
 
-Elluminate installs with a built-in pure Java database (Mckoi) and provides
-language independant SOAP/XML layer. This package implements perl bindings
-for this.
+This module can also assit you in setting meeting preloads, such as whiteboards
+and multi-media files. 
 
 =cut
-
-use Moose;
-
-use base qw{Class::Data::Inheritable };
-
-use Elive::Connection;
-
-__PACKAGE__->mk_classdata('_last_connection');
 __PACKAGE__->mk_classdata('_login');
 __PACKAGE__->mk_classdata('adapter' => 'default');
 
@@ -94,7 +90,7 @@ sub connect {
 	debug => $class->debug,
 	);
 
-    $class->_last_connection( $connection );
+    $class->connection( $connection );
 
     #
     # The login name should be a valid user in the database
@@ -119,19 +115,15 @@ sub connect {
      $e1 = Elive->connection
          or warn 'no elive connection active';
 
-     Returns an Elive handle for the last successful connection.
+     Returns an Elive connection handle.
 
 =cut
 
-sub connection {
-    my $class = shift;
-
-    return $class->_last_connection;
-}
+__PACKAGE__->mk_classdata('connection');
 
 =head2 login
 
-return the connected user entity
+return the user entity used to connect to the server
 
 =cut
 
@@ -150,7 +142,7 @@ exiting your program
 sub disconnect {
     my $class = shift;
 
-    $class->_last_connection(undef);
+    $class->connection(undef);
     $class->_login(undef);
 }
 
@@ -184,10 +176,130 @@ sub debug {
     return $DEBUG || 0;
 }
 
-=head1 EXAMPLES
+our %KnownAdapters;
 
-elive_query is an installed script the Elive distribution. It is a simple
-program for querying entities and executing queries to an Elluminate server.
+BEGIN {
+    @KnownAdapters{qw(
+addGroupMember addMeetingPreload attendanceNotification
+changePassword checkMeetingPreload
+createGroup createMeeting createPreload createRecording createUser
+deleteGroup deleteMeeting deleteParticipant deleteRecording deletePreload deleteUser
+getGroup getMeeting getMeetingParameters getPreload getPreloadStream getRecording getRecordingStream getServerDetails getUser
+importPreload
+listGroups listMeetingPreloads listMeetings listParticipants listPreloads listRecordings listUserMeetingsByDate listUsers
+resetGroup resetParticipantList
+setParticipantList
+streamPreload streamRecording
+updateMeeting updateMeetingParameters updateRecording updateServerParameters updateUser)} = undef;
+}
+
+=head2 check_adapter
+
+    Elive->check_adapter('getUser')
+
+Simple asserts that the adapter we are about to use is valid and known to
+Elive.
+
+=head3 See Also
+
+elive_lint_config
+
+=cut
+
+sub check_adapter {
+    my $class = shift;
+    my $adapter = shift
+	or die 'usage: $class->known_adapter($name)';
+
+    die "Uknown adapter: $adapter"
+	unless exists $KnownAdapters{$adapter};
+
+    return $adapter;
+}
+
+=head2 known_adapters
+
+    Return a list of all Elive adapters.
+
+=cut
+
+sub known_adapters {
+    my $class = shift;
+    return sort keys %KnownAdapters;
+}
+
+our %Meta_Data;
+our %Meta_Data_Accessor;
+
+=head2 has_metadata
+
+Create or reuse an inside-out accessor
+
+=cut
+
+sub has_metadata {
+
+    my $class = shift;
+    my $accessor = shift;
+
+    unless (exists $Meta_Data_Accessor{ $accessor }) {
+
+	no strict 'refs';
+
+	$Meta_Data_Accessor{ $accessor }  = sub {
+	    my $self = shift;
+	    my $ref = $self->_refaddr
+		or return;
+
+	    $Meta_Data{ $ref }{ $accessor } = $_[0]
+		if @_;
+
+	    return $Meta_Data{ $ref }{ $accessor };
+	};
+
+	*{$class.'::'.$accessor} = $Meta_Data_Accessor{ $accessor }
+    }
+
+    return $Meta_Data_Accessor{ $accessor };
+}
+
+sub DESTROY {
+    my $self = shift;
+    delete  $Meta_Data{ $self->_refaddr };
+}
+
+=head1 ERROR MESSAGES
+
+Elluminate Services Errors:
+
+=over 4
+
+=item   "Unable to determine a command for the key : listXxxx"
+
+This indicates that the particular command is not available for your site
+instance. The method may just need to be registers in your adapter configuration
+your adapter configuration file
+
+  1. stop elluminate services
+  2. cd /opt/ElluminateLive/manager/tomcat/webapps/<site>/WEB-INF/resources
+     for your particular site
+  3. edit configuration.xml add the following:
+            <class>com.elluminate.adapter.CommandAdapter</class>
+               .....
+               <argument>
+                   <name>command:listXxxx</name>
+                   <value>com.elluminate.adapter.command.ListXxxxCommand</value>
+               </argument>
+  4. restart elluminate ands try again
+
+=back
+
+=head1 INSTALLED SCRIPTS
+
+=head2 elive_query
+
+elive_query is an example script included in the Elive distribution. It is a
+simple program for listing and retrieving entities.
 
 	% elive_query http://myserver.com/test -username serversupport
         Password: ********
@@ -214,11 +326,8 @@ program for querying entities and executing queries to an Elluminate server.
 	462298303857|0||sally.smith|sally@smith.id.au|3|Sally|Smith
 	elive>
 
-=head2 elive_query Restrictions
-
-elive_query does not attempt parse or interpret where clauses, but simply
-passes them through as filter parameters on SOAP calls to the elluminate
-server.
+elive_query is simply passing where clauses, but through to the Elluminate
+server as filters on SOAP calls.
 
 For example, for the statement
 
@@ -242,63 +351,114 @@ be careful the include a where clauses to limit the amount of data returned
 for larger tables. 
 
 As a final note, elive_query doesn't support updates or deletes with the
-initial release of Elive 0.1. This may be implemented in the next few
+initial release of Elive 0.2. This may be implemented in the next few
 releases.
 
-=head1 BUGS AND LIMITATIONS
+=head2 elive_raise_meeting
 
-(*) Elluminate SOAP/XML interface doesn't locking or transactional control
-    and cannot match the robustness of a native database. 
-    It's probably a good idea to design your application architecture and
-    database updates to minimise the changes of contention. Eg. audit trails
-    and/or master copies of the data. Also consider Elluminate Live's backup
-    facilties.
+This is a demonastration script to create a meeting, set options, assign
+participants and upload meeting preloads (whiteboard and media files to be
+used to used for the meeting.
 
-(*) The Elluminate server installs with the Mckoi JDBC database, but can
-    also connect to other databases that support JDBC and can be readily
-    accessed via the Perl DBI. E.g. SQL Server or Oracle. See the Elluminate
-    Live advanced adminstration guide.
+For more information, type the command: elive_raise_meeting --help
 
-(*) Elluminate Live can also be configured to use an LDAP respository for
-    user authentication.  Users can still be retrieved or listed. However
-    updates and deletes are not supported via Elluminate Live or Elive.
+=head2 elive_lint_config
 
 =head1 SEE ALSO
 
-  Elive::Connection - SOAP/XML Connection
+Perl Modules:
 
-  Elive::Entity - The base class for all elive entities
+=over 4
 
-  Elive::Entity::Group
-  Elive::Entity::Meeting
-  Elive::Entity::MeetingParameters
-  Elive::Entity::ParticipantList
-  Elive::Entity::Recording
-  Elive::Entity::ServerDetails
-  Elive::Entity::User
+=item Elive::Connection - SOAP/XML connection to Elluminate
 
-  elive_query - simple interactive queries on Elive entities
-  elive_raise_meeting - sample script that create meetings via one-liners
+=item Elive::Entity - The base class for all elive entities
 
-The Elluminate Dcoumentation Suite, including:
+=item Entity - Entity base class
 
-  ELM2.5_SDK.pdf      - Elive interfaces with the SOAP/XML bindings
-                        described in section 4 - the command toolkit.
-  DatabaseSchema.pdf  - Elluminate Database Schema Documentation.
-  InstanceManager.pdf - Describes setting up multiple instances. You'll
-                        probably at least want to set up a test instance!
+=item Elive::Entity::Group
+
+=item Elive::Entity::Meeting
+
+=item Elive::Entity::MeetingParameters
+
+=item Elive::Entity::ParticipantList
+
+=item Elive::Entity::Preload
+
+=item Elive::Entity::Recording
+
+=item Elive::Entity::ServerDetails
+
+=item Elive::Entity::User
+
+=back
+
+Scripts:
+
+=over 4
+
+=item elive_query - simple interactive queries on Elive entities
+
+=item elive_raise_meeting - sample script that create meetings via one-liners
+
+=item elive_lint_config - sanity check your servers site configuration
+
+=back
+
+Elluminate Live Documentation. This comes with your distribtuion
+
+=over 4
+
+=item ELM2.5_SDK.pdf
+
+General Description of SDK's available for Elluminate Live. In particular
+see section 4 - the SOAP/XML command toolkit.
+
+=item DatabaseSchema.pdf
+
+Elluminate Database Schema Documentation.
+
+=item InstanceManager.pdf
+
+Describes setting up multiple instances.
+
+=back
 
 =head1 AUTHOR
 
 David Warring, C<< <david.warring at gmail.com> >>
 
-=head1 BUGS
+=head1 BUGS AND LIMITATIONS
 
-The initial v0.01 Elive release:
+=over 4
 
--- has been tested against Elluminate 9.0 and 9.1 only
--- doesn't implement all SOAP calls. I will try to build this up
-   over time. Please let me know your priorities.
+=item The Elive 0.2 release:
+
+has only been tested against Elluminate 9.0 and 9.1 and implements a subset
+of all documented SOAP/XML calls.
+
+=item Transactional control
+
+Elluminate SOAP/XML interface doesn't provide for locking or transactional
+control. It's probably a good idea to design your application architecture
+and database updates to minimise the changes of contention. Eg. audit trails
+and/or master copies of the data.
+
+=item Database Support
+
+The Elluminate server installs with the Mckoi JDBC database, but can
+also connect to other databases that support JDBC and can be readily
+accessed via the Perl DBI. E.g. SQL Server or Oracle. See the Elluminate
+Live advanced adminstration guide.
+
+=item LDAP Authentication
+
+Elluminate Live can also be configured to use an LDAP respository for
+user authentication.  Users can still be retrieved or listed. However
+updates and deletes are not supported via Elluminate Live or Elive.
+
+=back
 
 Please report any bugs or feature requests to C<bug-elive at rt.cpan.org>,
 or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Elive>.
@@ -335,8 +495,8 @@ L<http://search.cpan.org/dist/Elive/>
 
 =head1 ACKNOWLEDGEMENTS
 
-Thanks to Lex Lucas and to Simon Haidley their support and direction
-with the consrtuction of this module.
+Thanks to Lex Lucas and Simon Haidley for their support and direction
+during the construction of this module.
 
 =head1 COPYRIGHT & LICENSE
 
@@ -344,7 +504,6 @@ Copyright 2009 David Warring, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
-
 
 =cut
 
