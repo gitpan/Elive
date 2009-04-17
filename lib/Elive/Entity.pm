@@ -30,7 +30,7 @@ It provides a simple mapping from the objects to database entities.
 Database entities evalute to their primary key, when used in a string
 context.
 
-    if ($user_obj eq "11223344") {
+    if ($user_obj->stringify eq "11223344") {
         ....
     }
 
@@ -38,22 +38,18 @@ Arrays of sub-items evaluated, in a string context, to a semi-colon seperated
 string of the individual values sorted.
 
     my $group = Elive::Entity::Group->retrieve([98765]);
-    if ($group->members eq "11223344;2222222") {
+    if ($group->members->stringify eq "11223344;2222222") {
          ....
     }
 
 In particular meeting participants stringify to userId=role, eg
 
     my $participant_list = Elive::Entity::ParticipantList->retrieve([98765]);
-    if ($participant_list->participants eq "11223344;2222222") {
+    if ($participant_list->participants->stringify eq "11223344=3;2222222=2") {
          ....
     }
 
 =cut
-
-use overload
-    '""' =>
-    sub {shift->stringify}, fallback => 1;
 
 our %Stored_Objects;
 
@@ -181,6 +177,56 @@ sub construct {
     $self;
 }
 
+#
+# __tidy_decimal(): general cleanup and normalisation of an integer.
+#               used to clean up numbers for data storage or comparision
+
+sub __tidy_decimal {
+    my $i = $_[0];
+    #
+    # well a number really. don't convert or sprintf etc
+    # to avoid overflow. Just normalise it for potential
+    # string comparisions
+
+    #
+    # l-r trim
+    #
+    $i =~ s{^ \s* (.*?) \s* $}{$1}x;
+
+    #
+    # non number. throw it back for mouse constraint handling (?)
+    #
+    return undef
+	unless $i =~ m{^[+-]?\d+$};
+
+    #
+    # remove any leading zeros:
+    # +000123 => 123
+    # -00045 => -45
+    # -000 => 0
+    #
+
+    $i =~ s{^
+            \+?    # leading plus -discarded 
+            (-?)   # leading minus retained (usually)
+            0*     # leading zeros discarded
+            (\d+)  # number - retained
+            $}
+	    {$1$2}x;
+
+    #
+    # reduce -0 => 0
+    $i = 0 if ($i eq '-0');
+
+    #
+    # should get here. just a sanity check.
+    #
+    die "bad integer: $_[0]"
+	unless $i =~ m{^[+-]?\d+$};
+
+    return $i;
+}
+
 sub _freeze {
     #
     # _freeze - construct name/value pairs for database inserts or updates
@@ -208,10 +254,7 @@ sub _freeze {
 
 		    if (Scalar::Util::refaddr($_)) {
 
-			$_ = $type->new(Elive::Util::_clone($_))
-			    unless (Scalar::Util::blessed($_));
-
-			$_ = $_->stringify;
+			$_ = $type->stringify($_);
 		    }
 		}
 		elsif ($type =~ m{Bool}i) {
@@ -220,6 +263,11 @@ sub _freeze {
 		    # DBize boolean flags..
 		    #
 		    $_ =  $_ ? 'true' : 'false'
+			if defined;
+		}
+		elsif ($type =~ m{Int}i) {
+
+		    $_ = __tidy_decimal($_)
 			if defined;
 		}
 
@@ -326,39 +374,13 @@ sub _thaw {
 		    $_ = m{true}i ? 1 : 0;
 		}
 		elsif ($type =~ m{Str}i) {
-		    s{^ \s* (.*?) \s* $}{$1}x;
-		}
-		elsif ($type =~ m{Int}i) {
-		    #
-		    # well a number really. don't convert or sprintf etc
-		    # to avoid overflow. Just normalise it for potential
-		    # string comparisions
-
 		    #
 		    # l-r trim
 		    #
 		    s{^ \s* (.*?) \s* $}{$1}x;
-
-		    #
-		    # non number
-		    #
-		    $_ = 0 unless m{^\d+$};
-
-		    #
-		    # remove any leading zeros:
-		    # +000123 => 123
-                    # -00045 => -45
-                    # -000 => 0
-		    #
-		    $_ =~ s{^
-                             \+?    # leading plus -discarded 
-                             (-?)   # leading minus retained (usually)
-                             0*     # leading zeros discarded
-                             (\d+)  # number - retained
-                             $}
-		            {$1$2}x;
-
-		    $_ = 0 if ($_ eq '-0');
+		}
+		elsif ($type =~ m{Int}i) {
+		    $_ = __tidy_decimal($_);
 		}
 		else {
 		    die "class $class: column $col has unknown type: $type";
@@ -376,6 +398,12 @@ sub _thaw {
     
     return \%data;
 }
+
+#
+# Normalise our data and reconstruct arrays.
+#
+# See t/05-entity-unpack.t for examples and further explanation.
+#
 
 sub _unpack_results {
     my $class = shift;
@@ -453,6 +481,40 @@ sub _unpack_results {
     return $results;
 }
 
+sub _unpack_as_list {
+    my $class = shift;
+    my $result = shift;
+
+    $result = $class->_unpack_results($result);
+
+    my $reftype = Elive::Util::_reftype($result);
+
+    my $results_list;
+
+    if ($reftype eq 'HASH') {
+
+	$results_list = [ $result ];
+
+    }
+    elsif ($reftype eq 'ARRAY') {
+
+	$results_list = $result;
+
+    }
+    else {
+
+	$results_list = defined ($result)
+	    ? [ $result ]
+	    : [];
+
+    }
+
+    warn "$class result: ".YAML::Dump($result)
+	if ($class->debug >= 2);
+
+    return $results_list;
+}
+
 sub _check_for_errors {
     my $class = shift;
     my $som = shift;
@@ -502,32 +564,7 @@ sub _get_results {
 
     $class->_check_for_errors($som);
 
-    my $results_list;
-
-    my $result = $class->_unpack_results($som->result);
-
-    my $reftype = Elive::Util::_reftype($result);
-
-    if ($reftype eq 'HASH') {
-
-	$results_list = [ $result ];
-
-    }
-    elsif ($reftype eq 'ARRAY') {
-
-	$results_list = $result;
-
-    }
-    else {
-
-	$results_list = defined ($result)
-	    ? [ $result ]
-	    : [];
-
-    }
-
-    warn "$class result: ".YAML::Dump($result)
-	if ($class->debug >= 2);
+    my $results_list = $class->_unpack_as_list($som->result);
 
     return $results_list;
 }
@@ -597,94 +634,6 @@ sub _readback_check {
     return $row;
 }
 
-
-sub _cmp_col {
-
-    #
-    # Compare two values for a property 
-    #
-
-    my $class = shift;
-    my $col = shift;
-    my $_v1 = shift;
-    my $_v2 = shift;
-
-    return undef
-	unless (defined $_v1 && defined $_v2);
-
-    my $cmp;
-
-    my ($type, $is_array, $is_def) = Elive::Util::parse_type($class->property_types->{$col});
-    my @v1 = ($is_array? @$_v1: ($_v1));
-    my @v2 = ($is_array? @$_v2: ($_v2));
-
-    if ($is_def) {
-	#
-	# Normalise objects and references to simple strings
-	#
-	for (@v1, @v2) {
-	    #
-	    # autobless references
-	    if (Scalar::Util::refaddr($_)) {
-
-		$_ = $type->construct(Elive::Util::_clone($_))
-		    unless (Scalar::Util::blessed($_));
-
-		$_ = $_->stringify;
-	    }
-	}
-    }
-
-    @v1 = sort @v1;
-    @v2 = sort @v2;
-
-    #
-    # unequal arrays lengths => unequal
-    #
-
-    $cmp ||= scalar @v1 <=> scalar @v2;
-
-    if ($cmp) {
-    }
-    elsif (scalar @v1 == 0) {
-
-	#
-	# Empty arrays => equal
-	#
-
-	$cmp = undef;
-    }
-    else {
-	#
-	# compare values
-	#
-	for (my $i = 0; $i < @v1; $i++) {
-
-	    my $v1 = $v1[$i];
-	    my $v2 = $v2[$i];
-
-	    if ($is_def || $type =~ m{Str}i) {
-		# string comparision. works on simple strings and
-		# stringified entities.
-		# 
-		$cmp ||= $v1 cmp $v2;
-	    }
-	    elsif ($type =~ m{Bool}i) {
-		# boolean comparison
-		$cmp ||= ($v1? 1: 0) <=> ($v2? 1: 0);
-	    }
-	    elsif ($type =~ m{Int}i) {
-		# int comparision
-		$cmp ||= $v1 <=> $v2
-	    }
-	    else {
-		die "class $class: column $col has unknown type: $type";
-	    }
-	}
-    }
-    return $cmp;
-}
-
 =head2 is_changed
 
     Return  a list of properties that have uncommited changes.
@@ -736,6 +685,27 @@ sub set {
     return $self->SUPER::set(@_);
 }
 
+sub _readback {
+    my $class = shift;
+    my $som = shift;
+    my $sent_data = shift;
+    #
+    # Inserts and updates normally return a copy of the entity
+    # after an insert or update. Confirm that the output record contains
+    # the updates and return it.
+
+    my $results = $class->_get_results(
+	$som,
+	);
+    #
+    # Check that the return response has our inserts
+    #
+    my $rows =  $class->_process_results( $results );
+    my $row = $class->_readback_check($sent_data, $rows);
+
+    return $row;
+}
+
 =head2 insert
 
    # Construct object, then insert.
@@ -771,27 +741,6 @@ sub insert {
     }
 
     return $class->_insert_class(@_);
-}
-
-sub _readback {
-    my $class = shift;
-    my $som = shift;
-    my $sent_data = shift;
-    #
-    # Inserts and updates normally return a copy of the entity
-    # after an insert or update. Confirm that the output record contains
-    # the updates and return it.
-
-    my $results = $class->_get_results(
-	$som,
-	);
-    #
-    # Check that the return response has our inserts
-    #
-    my $rows =  $class->_process_results( $results );
-    my $row = $class->_readback_check($sent_data, $rows);
-
-    return $row;
 }
 
 sub _insert_class {
@@ -1061,9 +1010,12 @@ sub retrieve {
 	#
 	# Have we already got the object loaded? if so return it
 	#
+	my %pkey;
+	@pkey{$class->primary_key} = @$vals;
+
 	my $obj_url = $class->_url(
 	    $connection,
-	    $class->stringify(@$vals)
+	    $class->stringify(\%pkey)
 	    );
 
 	my $cached = $class->live_entity($obj_url);
@@ -1221,20 +1173,8 @@ use Elive::Entity::Role;
 use Elive::Entity::ServerDetails;
 use Elive::Entity::User;
 
-#------ Coercion Rules
-
-# passing some global flags through from our parent conastructor:
+# passing some global flags through from our parent constructor:
 # $Elive::_construct_opts       - this is copy don't register it as an abject
-
-#coerce 'Elive::Array' => from 'ArrayRef[Int]'
-#          => via {Elive::Array->new($_)};
-
-
-coerce 'Elive::Entity::Role' => from 'HashRef'
-          => via { Elive::Entity::Role->new($_) };
-
-coerce 'Elive::Entity::User' => from 'HashRef'
-          => via { Elive::Entity::User->construct($_, %Elive::_construct_opts) };
 
 =head2 DEMOLISH
 

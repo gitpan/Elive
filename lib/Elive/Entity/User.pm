@@ -2,9 +2,12 @@ package Elive::Entity::User;
 use warnings; use strict;
 
 use Mouse;
+use Mouse::Util::TypeConstraints;
 
 use Elive::Entity;
 use base qw{ Elive::Entity };
+
+use Elive::Entity::Role;
 
 __PACKAGE__->entity_name('User');
 __PACKAGE__->collection_name('Users');
@@ -17,7 +20,7 @@ has 'deleted' => (is => 'rw', isa => 'Bool');
 
 has 'loginPassword' => (is => 'rw', isa => 'Str');
 
-has 'loginName' => (is => 'rw', isa => 'Str', required => 1,
+has 'loginName' => (is => 'rw', isa => 'Str',
 		    documentation => 'login name - must be unique');
 		    
 has 'email' => (is => 'rw', isa => 'Str',
@@ -32,6 +35,10 @@ has 'firstName' => (is => 'rw', isa => 'Str',
 
 has 'lastName' => (is => 'rw', isa => 'Str',
 		   documentation => 'users surname');
+
+
+coerce 'Elive::Entity::User' => from 'HashRef'
+          => via {Elive::Entity::User->construct($_, %Elive::_construct_opts) };
 
 =head1 NAME
 

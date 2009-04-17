@@ -34,13 +34,6 @@ sub-structure.
 sub parse_type {
     my $type = shift;
 
-    #
-    # Alternate types returned are returned as an array in some Moose
-    # Moose versions. Take first as the primary type.
-    #
-    $type = $type->[0]
-	if (_reftype($type) eq 'ARRAY');
-
     my $is_array = ($type =~ s{^ArrayRef\[ ([^\]]*) \] $}{$1}x);
 
     #
@@ -93,4 +86,22 @@ sub _clone {
     return Storable::dclone(shift);
 }
 
+=head2 string
+
+Try hard to return the object as a string. If it's a simple scalar fine,
+If it's an object that supports the stringify method, also good.
+
+=cut
+
+sub string {
+    for ($_[0]) {
+	return $_
+	    unless _reftype($_);
+
+	return $_->stringify
+	    if UNIVERSAL::can($_,'stringify');
+
+	return $_;
+    }
+}
 1;
