@@ -33,7 +33,7 @@ README
 script/elive_lint_config
 script/elive_query
 script/elive_raise_meeting
-t/00-load.t
+t/00-compile.t
 t/01-entity-construct.t
 t/02-entity-update.t
 t/03-entity-changes.t
@@ -43,6 +43,7 @@ t/06-entity-freeze.t
 t/07-entity-thaw.t
 t/10-entity-warnings.t
 t/11-entity-errors.t
+t/20-preload.t
 t/90-pod.t
 t/91-pod-coverage.t
 t/99-kwalitee.t
