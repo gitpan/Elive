@@ -2,6 +2,7 @@ package Elive::Entity::Preload;
 use warnings; use strict;
 
 use Mouse;
+use Mouse::Util::TypeConstraints;
 
 use Elive::Entity;
 use base qw{ Elive::Entity };
@@ -30,8 +31,9 @@ __PACKAGE__->collection_name('Preloads');
 has 'preloadId' => (is => 'rw', isa => 'Int', required => 1);
 __PACKAGE__->primary_key('preloadId');
 
-has 'type' => (is => 'rw', isa => 'Str', required => 1,
-	       documentation => 'media or blackboard(?)',
+enum enumPreloadTypes => qw(media whiteboard);
+has 'type' => (is => 'rw', isa => 'enumPreloadTypes', required => 1,
+	       documentation => 'preload type. media or blackboard',
     );
 
 has 'name' => (is => 'rw', isa => 'Str', required => 1,
@@ -52,39 +54,14 @@ has 'size' => (is => 'rw', isa => 'Int', required => 1,
 has 'data' => (is => 'rw', isa => 'Str',
 	       documentation => 'The contents of the preload.');
 
+
 =head1 METHODS
 
 =cut
 
-=head2 import_file
-
-    my $preload1 = Elive::Entity::Preload->import(
-             {
-		    type => 'whiteboard',
-		    mimeType => 'application/octet-stream',
-		    name => 'introduction.wbd',
-		    ownerId => 357147617360,
-                    fileName => $path_on_server
-	     },
-         );
-
-Create a preload from a file already present on the server.
-
-=cut
-
-sub import_file {
-    my $class = shift;
-    my $insert_data = shift;
-    my %opt = @_;
-
-    $class->SUPER::_insert_class($insert_data,
-				 adapter => 'importPreload',
-				 %opt);
-}
-
 =head2 upload
 
-    my $preload1 = Elive::Entity::Preload->upload(
+    my $preload = Elive::Entity::Preload->upload(
              {
 		    type => 'whiteboard',
 		    mimeType => 'application/octet-stream',
@@ -94,7 +71,7 @@ sub import_file {
 	     },
          );
 
-Create a preload from binary data.
+Upload data from a client and create a preload..
 
 =cut
 
@@ -114,7 +91,9 @@ sub upload {
 
     if ($length) {
 
-	my $som = $self->connection->call('streamPreload',
+	my $adapter = Elive->check_adapter('streamPreload');
+
+	my $som = $self->connection->call($adapter,
 					  preloadId => $self->preloadId,
 					  length => $length,
 					  stream => (SOAP::Data
@@ -131,10 +110,9 @@ sub upload {
 =head2 download
 
     my $preload = Elive::Entity::Preload->retrieve([$preload_id]);
+    my $binary_data = $preload->download;
 
-    my $data = $preload->download
-
-Create a preload from binary data.
+Download data for a preload.
 
 =cut
 
@@ -149,8 +127,8 @@ sub download {
     die "unable to get a preload_id"
 	unless $preload_id;
 
-
-    my $som = $self->connection->call('getPreloadStream',
+    my $adapter = Elive->check_adapter('getPreloadStream');
+    my $som = $self->connection->call($adapter,
 				      preloadId => $self->preloadId,
 	    );
 
@@ -164,6 +142,31 @@ sub download {
     return undef;
 }
 
+=head2 import_file
+
+    my $preload1 = Elive::Entity::Preload->import_file(
+             {
+		    type => 'whiteboard',
+		    mimeType => 'application/octet-stream',
+		    name => 'introduction.wbd',
+		    ownerId => 357147617360,
+                    fileName => $path_on_server
+	     },
+         );
+
+Create a preload from a file that is already present on the server.
+
+=cut
+
+sub import_file {
+    my $class = shift;
+    my $insert_data = shift;
+    my %opt = @_;
+
+    $class->SUPER::_insert_class($insert_data,
+				 adapter => 'importPreload',
+				 %opt);
+}
 
 sub _thaw {
     my $class = shift;

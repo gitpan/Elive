@@ -7,11 +7,11 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.08
+Version 0.09
 
 =cut
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
@@ -41,22 +41,25 @@ use Elive::Connection;
 
 =head1 DESCRIPTION
 
-Elluminate Live (c) is is a synchronous web tool virtual online classroom. It
-is suitable for online collaboration, classrooms, demonstrations, meetings,
-web conferences, seminars and IT deployment, training and support..
+Elluminate Live (c) is is a synchronous web tool for virtual online classrooms.
 
-This module provides class and object bindings to Elluminate Live server
-via its SOAP/XML command interace.
+It is suitable for online collaboration, demonstrations, meetings, web
+conferences, seminars and IT deployment, training and support.
 
-You can use it to create/read/update and delete entities on an Elluminate
-site. This includes Users, User Groups, Meetings and Meeting Participants.
+Elive implements Perl object bindings to the Elluminate Live
+SOAP/XML SDK.
+
+It is designed to assist in the management and integration of Elluminate
+Live sites, including user management and meeting setup. It provides
+object bindings to all common entities, including Users, Groups of Users,
+Meetings, Preloads and Meeting Participants.
 
 =cut
 
 __PACKAGE__->mk_classdata('_login');
 __PACKAGE__->mk_classdata('adapter' => 'default');
 
-our $DEBUG = 0;
+our $DEBUG = $ENV{ELIVE_DEBUG};
 our $WARN = 1;
 
 =head1 METHODS
@@ -70,6 +73,8 @@ our $WARN = 1;
 
     Connects to an Elluminate Server instance. Dies if the connection could
     not be established. For example the connection or user login failed.
+
+    The login user must be an Elluminate Live system administrator account.
 
 =cut
 
@@ -266,13 +271,14 @@ sub has_metadata {
 
 	no strict 'refs';
 
-	$Meta_Data_Accessor{ $accessor }  = sub {
+	$Meta_Data_Accessor{ $accessor } ||= sub {
 	    my $self = shift;
 	    my $ref = $self->_refaddr
 		or return;
 
-	    $Meta_Data{ $ref }{ $accessor } = $_[0]
-		if @_;
+	    if (@_) {
+		$Meta_Data{ $ref }{ $accessor } = $_[0];
+	    }
 
 	    return $Meta_Data{ $ref }{ $accessor };
 	};
@@ -285,7 +291,16 @@ sub has_metadata {
 
 sub DESTROY {
     my $self = shift;
-    delete  $Meta_Data{ $self->_refaddr };
+    delete  $Meta_Data{Scalar::Util::refaddr($self)};
+}
+
+{
+    #
+    # just in case this is a moose/mouse object - grr
+    #
+    no strict 'refs';
+
+    *{__PACKAGE__.'::DEMOLISH'} = \&DESTROY;
 }
 
 =head1 ERROR MESSAGES
@@ -308,38 +323,13 @@ for insrtuctions on detecting and repairing missing adapters.
 
 =back
 
-=head1 INSTALLED SCRIPTS
+=head1 SCRIPTS
 
 =head2 elive_query
 
-elive_query is an example script included in the Elive distribution. It is
-a simple program for listing and retrieving entities. It serves both as a
-demonstration script, and to confirm basic operation of Elive.
-
-	% elive_query http://myserver.com/test -username serversupport
-        Password: ********
-	connecting to http://myserver.com/test ...done
-	Elive 0.01 - type 'help' for help
-	elive> help
-	...
-	elive> describe
-	usage: describe group|meeting|meetingParameters|participant|participantList|recording|role|serverDetails|user
-	elive> describe user
-	user: Elive::Entity::User:
-	  userId: pkey Int
-	  deleted: Bool
-	  loginPassword: Str
-	  loginName: Str
-	  email: Str
-	  role: Elive::Entity::Role
-	    roleID:  pkey Int
-	  firstName: Str
-	  lastName: Str
-	elive> select * from users where name like smith*
-	userId|deleted|loginPassword|loginName|email|role|firstName|lastName
-	182324083157|0||john.smith|john@allthesmiths.net|3|John|Smith
-	462298303857|0||sally.smith|sally@smith.id.au|3|Sally|Smith
-	elive>
+elive_query is an example simple sql-like script. It is a basic program
+for listing and retrieving entities. It serves as a simple demonstration
+script, and can be used to confirm basic operation of Elive.
 
 elive_query is simply passing where clauses, but through to the Elluminate
 server as filters on SOAP calls.
@@ -361,9 +351,7 @@ The equivalent Elive method call for the above is
 
     my $participants =  Elive::Entity::MeetingParticpant->retrieve_all(1234567);
 
-Also note that we've got no way of enforcing limits via the SOAP interface.
-be careful the include a where clauses to limit the amount of data returned
-for larger tables. 
+Also be careful to avoid selecting large amounts of data, e.g. all users.
 
 =head2 elive_raise_meeting
 
@@ -458,18 +446,18 @@ meetings and meeting participants.
 
 Elluminate SOAP/XML interface doesn't provide for locking or transactional
 control. The Elluminate server installs with the Mckoi pure Java database
-which only supports JDBC access.
+which supports JDBC access.
 
-Elluminate can also be configured to connect to other databases that support
-both DBI and a JDBC bridge, such as SQL Server or Oracle.
-
-Please see the Elluminate Live advanced administration guide.
+The Elluminate Live advanced installation guide also mentions that it
+can be configured to use other databases that support a JDBC bridge.It
+mentions SQL Server or Oracle. 
 
 =item LDAP Authentication
 
 Elluminate Live can also be configured to use an LDAP respository for
 user authentication.  Users can still be retrieved or listed. However
-updates and deletes are not supported. See also Net::LDAP.
+updates and deletes are not supported by the LDAP DAO adapter. See also
+Net::LDAP.
 
 =back
 

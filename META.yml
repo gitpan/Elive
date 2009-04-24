@@ -3,6 +3,7 @@ abstract: 'Elluminate Live (c) client library'
 author:
   - 'David Warring <david.warring@gmail.com>'
 build_requires:
+  Test::Exception: 0
   Test::More: 0
   Test::Warn: 0
 configure_requires:
@@ -42,4 +43,4 @@ requires:
   perl: 5.005
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.08
+version: 0.09

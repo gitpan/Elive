@@ -270,7 +270,6 @@ sub _freeze {
 		    $_ = __tidy_decimal($_)
 			if defined;
 		}
-
 	    }
 	}
     } 
@@ -367,19 +366,19 @@ sub _thaw {
 		    $_ = _thaw("$type", $_, $path . $idx);
 
 		}
-		elsif ($type =~ m{Bool}i) {
+		elsif ($type =~ m{^Bool}i) {
 		    #
 		    # Perlise boolean flags..
 		    #
 		    $_ = m{true}i ? 1 : 0;
 		}
-		elsif ($type =~ m{Str}i) {
+		elsif ($type =~ m{^(Str|Enum)}i) {
 		    #
 		    # l-r trim
 		    #
 		    s{^ \s* (.*?) \s* $}{$1}x;
 		}
-		elsif ($type =~ m{Int}i) {
+		elsif ($type =~ m{^Int}i) {
 		    $_ = __tidy_decimal($_);
 		}
 		else {
@@ -1178,14 +1177,7 @@ use Elive::Entity::ServerDetails;
 use Elive::Entity::User;
 
 # passing some global flags through from our parent constructor:
-# $Elive::_construct_opts       - this is copy don't register it as an abject
-
-=head2 DEMOLISH
-
-Standard Moose/Mouse object destructor. Destroying an object with unsaved
-changes produces a warning. Call the revert method to suppress this.
-
-=cut
+# $Elive::_construct_opts       - this is copy don't register it as an object
 
 sub DEMOLISH {
     my ($self) = shift;
@@ -1193,7 +1185,8 @@ sub DEMOLISH {
 
     if (my $db_data = $self->_db_data) {
 	if (my @changed = $self->is_changed) {
-	    warn("$class $self destroyed without saving changes to: "
+	    my $self_string = Elive::Util::string($self);
+	    warn("$class $self_string destroyed without saving or reverting changes to: "
 		 . join(', ', @changed));
 	}
 	#

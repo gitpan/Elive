@@ -1,10 +1,13 @@
 Revision history for Elive
 
+0.09    25nd April
+        - Beefing up test suite. In particular added optional SOAP tests.
+
 0.08    22nd April
-        Fixed read-back bug in entity updates
+        - Fixed read-back bug in entity updates
 
 0.07    21st April
-        Added 'upload' and 'download' methods for Elive::Entity::Preload
+        - Added 'upload' and 'download' methods for Elive::Entity::Preload
 
 0.06    18th April
         - several fixes to elive_raise_meeting
@@ -14,7 +17,7 @@ Revision history for Elive
         - Added tests for unpack/freeze/thaw. Some resultant bug fixes.
 
 0.04    16th April
-        - Bitten by overloading Elive::Util::parse_type
+        - Elive::Util::parse_type compatibility with Mouse 0.21+
 
 0.03    15th April
         - Bug fixes and enhancements to Participant Lists
