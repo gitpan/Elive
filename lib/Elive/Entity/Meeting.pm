@@ -10,6 +10,13 @@ use base qw{ Elive::Entity };
 
 Elive::Entity::Meeting - Elluminate Meeting instance class
 
+=head1 DESCRIPTION
+
+This is the main entity for meetings.
+
+Note that there are additional metting settings contained in both
+Elive::Entity::MeetingParameters and Elive::Entity::ServerParameters.
+
 =cut
 
 __PACKAGE__->entity_name('Meeting');
@@ -41,6 +48,88 @@ has 'name' => (is => 'rw', isa => 'Str', required => 1,
 =head1 METHODS
 
 =cut
+
+=head2 insert
+
+=head3 synopsis
+
+    #
+    # Simple case, single meeting
+    #
+    my $meeting = Elive::Entity::Meeting->insert({
+        start => hires_time,
+        end => hires_time,
+        name => string,
+        password =. string,
+        seats => int,
+        privateMeeting => 0|1,
+        timeZone => string
+       });
+
+    #
+    # A recurring series of meetings:
+    #
+    my @meetings = Elive::Entity::Meeting->insert({
+                            ...,
+                            recurrenceCount => n,
+                            recurrenceDays => 7,
+                        });
+
+=cut
+
+sub _insert_class {
+    my $class = shift;
+    my $data = shift;
+    my %opt = @_;
+
+    foreach (qw(seats recurrenceCount recurrenceDays timeZone)) {
+	$opt{param}{$_} = delete $data->{$_}
+	    if exists $data->{$_}
+    }
+
+    $opt{param}{private} = (delete $data->{private}? 'true': 'false')
+	if exists $data->{private};
+
+    $class->SUPER::_insert_class($data, %opt);
+}
+
+=head2 update
+
+=head3 synopsis
+
+    my $meeting = Elive::Entity::Meeting->update({
+        start => hires_time,
+        end => hires_time,
+        name => string,
+        password =. string,
+        seats => int,
+        private => 0|1,
+        timeZone => string
+       });
+
+=cut
+
+sub update {
+    my $self = shift;
+    my $data = shift;
+    my %opt = @_;
+
+    warn YAML::Dump({meeting_update_data => $data})
+	if (Elive->debug);
+
+    foreach (qw(seats timeZone)) {
+	$opt{param}{$_} = delete $data->{$_}
+	    if exists $data->{$_}
+    }
+
+    $opt{param}{private} = (delete $data->{private}? 'true': 'false')
+	if exists $data->{private};
+
+    warn YAML::Dump({meeting_opts => \%opt})
+	if (Elive->debug);
+
+    $self->SUPER::update($data, %opt);
+}
 
 =head2 list_user_meetings_by_date
 
@@ -88,7 +177,7 @@ sub list_user_meetings_by_date {
 	);
 }
 
-=head2 meeting_url
+=head2 web_url
 
 Utility method to return various website url's for the meeting. This is
 available as both class level and object level methods.
@@ -96,7 +185,7 @@ available as both class level and object level methods.
 =head3 Examples
 
     #
-    # Class level access. This may save an unessesary fetch.
+    # Class level access. This may save an unecessary fetch.
     #
     my $url = Elive::Entity::Meeting->meeting_url(
                      meeting_id => $meeting_id,
@@ -108,11 +197,11 @@ available as both class level and object level methods.
     # Object level.
     #
     my $meeting = Elive::Entity::Meeting->retrieve($meeting_id);
-    my $url = meeting->meeting_url(action => 'join');
+    my $url = meeting->web_url(action => 'join');
 
 =cut
 
-sub meeting_url {
+sub web_url {
     my $self = shift;
     my %opt = @_;
 
@@ -167,7 +256,11 @@ Associate a preload with a meeting
 
 sub add_preload {
     my $self = shift;
+    my $preload = shift;
     my %opt = @_;
+
+    die 'usage: $meeting_obj->add_preload($preload || $preload_id)'
+	unless $preload;
 
     my $meeting_id = $opt{meeting_id};
 
@@ -177,9 +270,9 @@ sub add_preload {
     die "unable to determine meeting_id"
 	unless $meeting_id;
 
-    my $preload_id = $opt{preload_id};
-    $preload_id ||= $self->preloadId
-	if ref($self);
+    my $preload_id = ref($preload)
+	? $preload->preloadId
+	: $preload;
 
     die "unable to determine preload_id"
 	unless $preload_id;
@@ -244,12 +337,17 @@ sub _freeze {
 	$frozen->{facilitator} =  $facilitatorId;
     }
 
+    if (defined(my $privateMeeting = delete $frozen->{privateMeeting})) {
+	$frozen->{private} =  $privateMeeting;
+    }
+
     return $frozen;
 }
 
 sub _readback_check {
     my $class = shift;
     my %updates = %{shift()};
+    my $rows = shift;
 
     #
     # password not included in readback record - skip it
@@ -257,7 +355,15 @@ sub _readback_check {
 
     delete $updates{password};
 
-    $class->SUPER::_readback_check(\%updates, @_);
+    #
+    # A series of recurring meetings can potentially be returned.
+    # to do: would be to check for correct ascension of start and
+    # end times. 
+    # just lop it for now
+    #
+    $rows = [$rows->[0]] if @$rows > 1;
+
+    $class->SUPER::_readback_check(\%updates, $rows, @_);
 }
 
 sub _thaw {
@@ -281,6 +387,12 @@ sub _thaw {
 
     return $data;
 }
+
+=head1 SEE ALSO
+
+Elive::Entity::Preload
+Elive::Entity::MeetingParameters 
+Elive::Entity::ServerParameters
 
 =head1 BUGS & LIMITATIONS
 

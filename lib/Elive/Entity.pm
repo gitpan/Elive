@@ -15,6 +15,8 @@ use Elive::Util;
 use Elive::Array;
 __PACKAGE__->has_metadata('_deleted');
 
+BEGIN {use Carp; local $SIG{__DIE__} = \&Carp::cluck}
+
 =head1 NAME
 
     Elive::Entity - Abstract class for Elive Entities
@@ -604,33 +606,35 @@ sub _readback_check {
     die "Didn't receive a response for ".$class->entity_name
 	unless @$rows;
 
-    die "Received multiple responses for ".$class->entity_name
-	if (@$rows > 1);
+##    die "Received multiple responses for ".$class->entity_name
+##	if (@$rows > 1);
 
-    my $row = $rows->[0];
+    foreach my $row (@$rows) {
 
-    my $property_types = $class->property_types;
+	my $property_types = $class->property_types;
 
-    foreach ($class->properties) {
+	foreach ($class->properties) {
 
-	if (exists $updates->{$_} && exists $row->{$_}) {
-	    my $write_val =  $updates->{$_};
-	    my $read_val = $row->{$_};
+	    if (exists $updates->{$_} && exists $row->{$_}) {
+		my $write_val =  $updates->{$_};
+		my $read_val = $row->{$_};
 
-	    if ($class->_cmp_col($_, $write_val,  $read_val)) {
-		warn YAML::Dump({read => $read_val, write => $write_val})
-		    if ($class->debug);
+		if ($class->_cmp_col($_, $write_val,  $read_val)) {
+		    warn YAML::Dump({read => $read_val, write => $write_val})
+			if ($class->debug);
 
-		foreach ($read_val, $write_val) {
-		    bless $_, 'Elive::Array'  # gives a nice stringified digest
-			if (Elive::Util::_reftype($_) eq 'ARRAY');
+		    foreach ($read_val, $write_val) {
+			bless $_, 'Elive::Array'  # gives a nice stringified digest
+			    if (Elive::Util::_reftype($_) eq 'ARRAY'
+				&& !Scalar::Util::blessed($_));
+		    }
+		    die "$class: Update consistancy check failed on $_: wrote:".Elive::Util::string($write_val).", read-back:".Elive::Util::string($read_val);
 		}
-		die "Update consistancy check failed on $_. Wrote:$write_val, read-back:$read_val, column: $_"
 	    }
 	}
     }
 
-    return $row;
+    return @$rows;
 }
 
 =head2 is_changed
@@ -700,9 +704,9 @@ sub _readback {
     # Check that the return response has our inserts
     #
     my $rows =  $class->_process_results( $results );
-    my $row = $class->_readback_check($sent_data, $rows);
+    $class->_readback_check($sent_data, $rows);
 
-    return $row;
+    return @$rows;
 }
 
 =head2 insert
@@ -767,10 +771,15 @@ sub _insert_class {
 				loginPassword => $login_password,
 	);
 
-    my $row = $class->_readback($som, $insert_data);
+    my @rows = $class->_readback($som, $insert_data);
 
-    my $self = $class->construct( $row, repository => $connection );
-    return $self;
+    my @objs = (map {$class->construct( $_, repository => $connection )}
+		@rows);
+    #
+    # Not a big fan of wantarry, but 99% we expect to return a single
+    # record on insert. Only exception is recurring meetings.
+    #
+    return wantarray? @objs : $objs[0];
 }
 
 =head2 live_entity
@@ -836,12 +845,14 @@ sub update {
     #
     # Write only changed properties.
     #
-    my @updated_properties = $self->is_changed;
-
+    my @updated_properties = ($opt{changed}
+			      ? @{$opt{changed}} 
+			      : $self->is_changed);
     #
     # Nothing to update
     #
-    return $self unless @updated_properties;;
+    return $self unless @updated_properties 
+	|| $opt{param};
 
     my %primary_key = map {$_ => 1} ($self->primary_key);
 
@@ -867,12 +878,12 @@ sub update {
 				       %{$opt{param} || {}},
 );
 
-    my $row = $self->_readback($som, \%updates);
+    my @rows = $self->_readback($som, \%updates);
     #
     # refresh the object from the database.
     #
-    $self->set(%$row)
-	if (Elive::Util::_reftype($row) eq 'HASH');
+    $self->set(%{$rows[0]})
+	if (@rows && Elive::Util::_reftype($rows[0]) eq 'HASH');
 
     #
     # Save the db image
@@ -963,7 +974,8 @@ sub _fetch {
 
     my $rows = $class->_process_results($results, %opt);
     #
-    # 0 results => not found
+    # 0 results => not found. Would be treated by readback as an error,
+    # but actually ok here.
     #
     return []
 	unless @$rows;
@@ -973,9 +985,6 @@ sub _fetch {
     my $read_back_query = $opt{readback} || $db_query;
 
     $class->_readback_check($read_back_query, $rows);
-    #
-    # Got one!!
-    #
     return [map {$class->construct( $_, repository => $connection )} @$rows];
 }
 
@@ -1174,6 +1183,7 @@ use Elive::Entity::Preload;
 use Elive::Entity::Recording;
 use Elive::Entity::Role;
 use Elive::Entity::ServerDetails;
+use Elive::Entity::ServerParameters;
 use Elive::Entity::User;
 
 # passing some global flags through from our parent constructor:

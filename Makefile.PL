@@ -24,12 +24,14 @@ requires(
     'Getopt::Long'                 => 0,  # for scripts
     'HTML::Entities'               => 0,
     'IO::Prompt'                   => 0,
+    'MIME::Types'                  => 0,
     'Mouse'                        => 0.21,
     'Pod::Usage'                   => 0,  # for elive_raise_meeting
     'Scalar::Util'                 => 0,
     'Storable'                     => 0,
     'Term::ReadKey'                => 0,
     'Term::ReadLine'               => 0,
+    'Term::ReadLine::Perl'         => 0,  # nice fallback
     'SOAP::Lite'                   => 0.69,
     'Storable'                     => 0,
     'YAML'                         => 0,

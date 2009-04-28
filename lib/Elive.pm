@@ -7,11 +7,11 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.09
+Version 0.10
 
 =cut
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
@@ -46,17 +46,19 @@ Elluminate Live (c) is is a synchronous web tool for virtual online classrooms.
 It is suitable for online collaboration, demonstrations, meetings, web
 conferences, seminars and IT deployment, training and support.
 
-Elive implements Perl object bindings to the Elluminate Live
-SOAP/XML SDK.
+Users, Meetings and other resources are stored in a management database.
+These can managed via the Elluminate Live web server. Most actions can also
+be performed via a Elluminate Live's SOAP/XML SDK.
 
-It is designed to assist in the management and integration of Elluminate
-Live sites, including user management and meeting setup. It provides
-object bindings to all common entities, including Users, Groups of Users,
-Meetings, Preloads and Meeting Participants.
+Elive implements Perl object bindings for the Elluminate Live SOAP/XML SDK.
+
+It is designed to assist in then integration and automation of Elluminate
+Live sites. In particular, managing users and meetings..
 
 =cut
 
 __PACKAGE__->mk_classdata('_login');
+__PACKAGE__->mk_classdata('_server_details');
 __PACKAGE__->mk_classdata('adapter' => 'default');
 
 our $DEBUG = $ENV{ELIVE_DEBUG};
@@ -131,7 +133,61 @@ return the user entity used to connect to the server
 =cut
 
 sub login {
-    return shift->_login
+    my $class = shift;
+
+    my $connection = $class->connection
+	or die "not connected";
+
+    my $login_entity = $class->_login;
+
+    unless ($login_entity) {
+
+	my $username = $connection->user
+	    or return;
+
+	eval "use  Elive::Entity::Login";
+	die $@ if $@;
+
+	$login_entity = Elive::Entity::User->get_by_loginName($username)
+	    or die "unable to get login user: $username";
+
+	$class->_login($login_entity);
+    }
+
+    return $login_entity;
+}
+
+=head2 server_details
+
+return the server details for entity for the current connection.
+
+=cut
+
+sub server_details {
+    my $class = shift;
+
+    my $connection = $class->connection
+	or die "not connected";
+
+    my $server_details = $class->_server_details;
+
+    unless ($server_details) {
+
+	eval "use  Elive::Entity::ServerDetails";
+	die $@ if $@;
+
+	my $server_details_list = Elive::Entity::ServerDetails->list();
+
+	die "unable to get server details"
+	    unless (Elive::Util::_reftype($server_details_list) eq 'ARRAY'
+		    && $server_details_list->[0]);
+
+	$server_details = ($server_details_list->[0]);
+
+	$class->_server_details($server_details);
+    }
+
+    return $server_details;
 }
     
 =head2 disconnect
@@ -144,8 +200,11 @@ exiting your program
 sub disconnect {
     my $class = shift;
 
-    $class->connection(undef);
+    $class->_server_details(undef);
     $class->_login(undef);
+    $class->connection(undef);
+
+    return undef;
 }
 
 =head2 debug
@@ -204,17 +263,17 @@ our %KnownAdapters;
 
 BEGIN {
     @KnownAdapters{qw(
-addGroupMember addMeetingPreload attendanceNotification
-changePassword checkMeetingPreload
-createGroup createMeeting createPreload createRecording createUser
-deleteGroup deleteMeeting deleteParticipant deleteRecording deletePreload deleteUser
-getGroup getMeeting getMeetingParameters getPreload getPreloadStream getRecording getRecordingStream getServerDetails getUser
-importPreload
-listGroups listMeetingPreloads listMeetings listParticipants listPreloads listRecordings listUserMeetingsByDate listUsers
-resetGroup resetParticipantList
-setParticipantList
-streamPreload streamRecording
-updateMeeting updateMeetingParameters updateRecording updateServerParameters updateUser)} = undef;
+addGroupMember addMeetingPreload attendanceNotification changePassword
+checkMeetingPreload createGroup createMeeting createPreload createRecording
+createUser deleteGroup deleteMeeting deleteParticipant deleteRecording
+deletePreload deleteUser getGroup getMeeting getMeetingParameters getPreload
+getPreloadStream getRecording getRecordingStream getServerDetails getServerParameters getUser
+importPreload listGroups listMeetingPreloads listMeetings listParticipants
+listPreloads listRecordings listUserMeetingsByDate listUsers resetGroup
+resetParticipantList setParticipantList streamPreload streamRecording
+updateMeeting updateMeetingParameters updateRecording updateServerParameters
+updateUser
+)} = undef;
 }
 
 =head2 check_adapter
@@ -391,6 +450,8 @@ Perl Modules:
 
 =item Elive::Entity::ServerDetails
 
+=item Elive::Entity::ServerParameters
+
 =item Elive::Entity::User
 
 =back
@@ -448,9 +509,9 @@ Elluminate SOAP/XML interface doesn't provide for locking or transactional
 control. The Elluminate server installs with the Mckoi pure Java database
 which supports JDBC access.
 
-The Elluminate Live advanced installation guide also mentions that it
-can be configured to use other databases that support a JDBC bridge.It
-mentions SQL Server or Oracle. 
+The Elluminate Live advanced configuration guide mentions that it can be
+configured to use other databases that support a JDBC bridge (most databases
+in widespread use do). However, it specifcally mentions SQL Server or Oracle. 
 
 =item LDAP Authentication
 
