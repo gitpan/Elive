@@ -7,11 +7,11 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.11
+Version 0.12
 
 =cut
 
-our $VERSION = '0.11';
+our $VERSION = '0.12';
 
 use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
@@ -268,7 +268,7 @@ checkMeetingPreload createGroup createMeeting createPreload createRecording
 createUser deleteGroup deleteMeeting deleteParticipant deleteRecording
 deletePreload deleteUser getGroup getMeeting getMeetingParameters getPreload
 getPreloadStream getRecording getRecordingStream getServerDetails getServerParameters getUser
-importPreload listGroups listMeetingPreloads listMeetings listParticipants
+importPreload importRecording listGroups listMeetingPreloads listMeetings listParticipants
 listPreloads listRecordings listUserMeetingsByDate listUsers resetGroup
 resetParticipantList setParticipantList streamPreload streamRecording
 updateMeeting updateMeetingParameters updateRecording updateServerParameters
@@ -280,12 +280,9 @@ updateUser
 
     Elive->check_adapter('getUser')
 
-Asserts that the adapter we are about to use is valid, i.e. it's in
-the Elive list of known adapters.
+Asserts that the adapter is valid, i.e. it's in the list of known adapters.
 
-=head3 See Also
-
-elive_lint_config
+See also: elive_lint_config.
 
 =cut
 

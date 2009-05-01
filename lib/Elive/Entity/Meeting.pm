@@ -159,26 +159,28 @@ sub list_user_meetings_by_date {
 	unless (Elive::Util::_reftype($params) eq 'ARRAY'
 		&& $params->[0] && @$params <= 3);
 
-    my %fetch;
-    @fetch{qw{userId startDate endDate}} = @_; 
+    my %fetch_params;
+    @fetch_params{qw{userId startDate endDate}} = @$params; 
 
-    return $class->_fetch(\%fetch,
-			  adapter => 'listUserMeetingsByDateCommand',
+    my $adapter = $class->check_adapter('listUserMeetingsByDate');
+
+    return $class->_fetch(\%fetch_params,
+			  adapter => $adapter,
 			  %opt,
 	);
 }
 
 =head2 web_url
 
-Utility method to return various website url's for the meeting. This is
+Utility method to return various website links for the meeting. This is
 available as both class level and object level methods.
 
 =head3 Examples
 
     #
-    # Class level access. This may save an unecessary fetch.
+    # Class level access.
     #
-    my $url = Elive::Entity::Meeting->meeting_url(
+    my $url = Elive::Entity::Meeting->web_url(
                      meeting_id => $meeting_id,
                      action => 'join',    # join|edit|...
                      connection => $my_connection);  # optional
@@ -205,6 +207,9 @@ sub web_url {
 	# dealing with an object
 	#
 	$meeting_id ||= $self->meetingId;
+    }
+    elsif (ref($meeting_id)) {  # an object
+	$meeting_id = $meeting_id->meetingId;
     }
 
     die "no meeting_id given"
@@ -280,7 +285,7 @@ sub add_preload {
 
 =head2 check_preload
 
-my $ok = Elive::Entity::Meeting->check_preload($preload);
+my $ok = $meeting_obj->check_preload($preload);
 
 Checks that the preload is associated with ths meeting.
 

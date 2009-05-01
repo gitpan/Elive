@@ -1,8 +1,13 @@
 Revision history for Elive
 
+0.12    2nd May
+        - Added recording 'download' and 'web_url' methods
+        - Omit null properties on retrieval. Avoid Mouse constraint errors.
+        - Corrections to 'list_user_meetings_by_date' method
+
 0.11    30th April
-        - Moved list_meeting_preloads method from meetings to preloads
-        - Corrected check_preload method for meetings
+        - Moved 'list_meeting_preloads' method from meetings to preloads
+        - Corrected 'check_preload' method for meetings
 
 0.10    28th April
         - Added support for recurring meetings
@@ -22,7 +27,7 @@ Revision history for Elive
         - Added 'upload' and 'download' methods for Elive::Entity::Preload
 
 0.06    18th April
-        - several fixes to elive_raise_meeting
+        - several fixes to 'elive_raise_meeting' script
 
 0.05    17th April
         - Removed Elive stringify overload for Elive objects
