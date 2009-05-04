@@ -15,7 +15,7 @@ __PACKAGE__->primary_key('recordingId');
 
 has 'creationDate' => (is => 'rw', isa => 'Int', required => 1);
 has 'data' => (is => 'rw', isa => 'Str');
-has 'facilitator' => (is => 'rw', isa => 'Int', required => 1);
+has 'facilitator' => (is => 'rw', isa => 'Int');
 has 'keywords' => (is => 'rw', isa => 'Str');
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
 has 'open' => (is => 'rw', isa => 'Bool');
@@ -87,7 +87,7 @@ available as both class level and object level methods.
     #
     # Object level.
     #
-    my $recording = Elive::Entity::Recording->retrieve($recording_id);
+    my $recording = Elive::Entity::Recording->retrieve([$recording_id]);
     my $url = recording->web_url(action => 'join');
 
 =cut

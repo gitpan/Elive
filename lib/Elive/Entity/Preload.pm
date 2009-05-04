@@ -92,13 +92,17 @@ sub upload {
         if $length;
 
     if ($insert_data->{name}) {
+
+	$_ = File::Basename::basename($_)
+	    for $insert_data->{name};
+
 	$insert_data->{mimeType} ||= $class->_guess_mimetype($insert_data->{name});
 	$insert_data->{type} ||= $insert_data->{name} =~ m{\.wbd}i
 	    ? 'whiteboard'
 	    : 'media';
     }
 
-    my $self = $class->SUPER::_insert_class($insert_data, %opt);
+    my $self = $class->_insert_class($insert_data, %opt);
 
     if ($length) {
 
@@ -188,9 +192,9 @@ sub import_from_server {
 
     $opt{param}{fileName} = $filename;
 
-    $class->SUPER::_insert_class($insert_data,
-				 adapter => 'importPreload',
-				 %opt);
+    $class->_insert_class($insert_data,
+			  adapter => 'importPreload',
+			  %opt);
 }
 
 =head2 list_meeting_preloads
