@@ -8,7 +8,39 @@ use base qw{Class::Accessor};
 
 =head1 NAME
 
-Elive::Connection -  Manage an Elluminate SOAP/XML Connection
+Elive::Connection -  Manage Elluminate SOAP/XML connections.
+
+=head1 DESCRIPTION
+
+This module handles logical connections to Elluminate Live sites.
+
+Most of the time, you won't need to use this module directly, rather
+you'll create on default connection via Elive:
+
+    Elive->connect('http://someserver.com', 'someuser', 'somepass');
+
+However, if you need to manage multiple sites and/or servers. You can
+have multiple connections:
+
+    my $connection1
+            = Elive::Connection->connect('http://someserver.com/site1',
+                                        'someUser', 'somePass');
+
+
+    my $connection2
+            = Elive::Connection->connect('http://someserver.com/site2',
+                                         'anotherUser', 'anotherPass');
+
+All entity constructor and retrieval methods support an optional connection
+parameter:
+
+     my $user = Entity::User->retrieve(
+                     [userId => 123456789000],
+                     connection => $connection1,
+                    );
+                                      
+The C<connection> option can be used on all of the following entity methods:
+C<create>, C<insert>, C<list> and C<retrieve>.
 
 =cut
 
@@ -138,7 +170,8 @@ sub login {
 	eval "use  Elive::Entity::User";
 	die $@ if $@;
 
-	$login_entity = Elive::Entity::User->get_by_loginName($username)
+	$login_entity = Elive::Entity::User->get_by_loginName($username,
+	    connection => $self)
 	    or die "unable to get login user: $username";
 
 	$self->_login($login_entity);
@@ -163,7 +196,8 @@ sub server_details {
 	eval "use  Elive::Entity::ServerDetails";
 	die $@ if $@;
 
-	my $server_details_list = Elive::Entity::ServerDetails->list();
+	my $server_details_list
+	    = Elive::Entity::ServerDetails->list(connection => $self);
 
 	die "unable to get server details"
 	    unless (Elive::Util::_reftype($server_details_list) eq 'ARRAY'

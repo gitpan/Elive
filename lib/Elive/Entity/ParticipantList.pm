@@ -9,16 +9,58 @@ use base qw{Elive::Entity};
 
 use Elive::Entity::Participant;
 use Elive::Util;
+use Elive::Array;
 
 __PACKAGE__->entity_name('ParticipantList');
 
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
 __PACKAGE__->primary_key('meetingId');
 
-has 'participants' => (is => 'rw', isa => 'ArrayRef[Elive::Entity::Participant]',
+has 'participants' => (is => 'rw', isa => 'ArrayRef[Elive::Entity::Participant]|Elive::Array',
     coerce => 1);
+
+sub _parse_participant {
+    local ($_) = shift;
+
+    m{^ \s* ([0-9]+) \s* (= ([0-3]) \s*)? $}x
+	or die "'$_' not in format: userId=role";
+
+    my $userId = $1;
+    my $roleId = $3;
+    $roleId = 3 unless defined $roleId;
+
+    return {user => {userId => $userId},
+	    role => {roleId => $roleId}};
+}
+
 coerce 'ArrayRef[Elive::Entity::Participant]' => from 'ArrayRef[HashRef]'
-          => via {[ map {Elive::Entity::Participant->new($_) } @$_ ]};
+          => via {
+	      my $a = [ map {Elive::Entity::Participant->new($_)} @$_ ];
+	      bless ($a, 'Elive::Array');
+	      $a;
+};
+
+coerce 'ArrayRef[Elive::Entity::Participant]' => from 'ArrayRef[Str]'
+          => via {
+	      my @participants = map {
+		  _parse_participant($_)
+	      } @$_;
+
+	      my $a = [ map {Elive::Entity::Participant->new($_)} @participants ];
+	      bless ($a, 'Elive::Array');
+	      $a;
+};
+
+coerce 'ArrayRef[Elive::Entity::Participant]' => from 'Str'
+          => via {
+	      my @participants = map {
+		  _parse_participant($_)
+	      } split(';');
+
+	      my $a = [ map {Elive::Entity::Participant->new($_)} @participants ];
+	      bless ($a,'Elive::Array');
+	      $a;
+          };
 
 =head1 NAME
 
@@ -28,7 +70,7 @@ Elive::Entity::ParticipantList - Meeting Participants entity class
 
 This is the entity class for meeting participants.
 
-The participants property is an array of Elive::Entity::Participant.
+The participants property is an array of type Elive::Entity::Participant.
 
 =cut
 
@@ -42,65 +84,31 @@ Note that for inserts, you only need to include the userId in the
 user records.  The following will be sufficient to associate two
 participants with a meeting.
 
+Participants are specified in the format: userId[=roleId], where
+the role is 3 for a normal participant or 2 or higher to grant the
+user moderator privileges for the meeting.
+
+The list of participants may be specified as a ';' separated string:
+
     my $participant_list = Elive::Entity::ParticipantList->insert(
     {
 	meetingId => 123456,
-	participants => [
-	    {
-		user => {userId => 11111111}, #user id
-		role => {roleId => 2},
-	    },
-	    {
-		user => {userId => 22222222}, #user id
-		role => {roleId => 2},
-	    },
-	],
+	participants => "111111=2;222222"
     },
     );
 
-=cut
+The participants may also be specified as an array ref:
 
-
-=head2 construct
-
-    my $participant_list = Elive::Entity::ParticipantList->construct(
+    my $participant_list = Elive::Entity::ParticipantList->insert(
     {
 	meetingId => 123456,
-	participants => [
-	    {
-		user => {userId => 11111111}, #user id
-		role => {roleId => 2},
-	    },
-	    {
-		user => {userId => 22222222}, #user id
-		role => {roleId => 2},
-	    },
-	],
+	participants => ['111111=2', 222222]
     },
     );
 
-Construct a participant list from data.
-
 =cut
 
-sub construct {
-    my $self = shift->SUPER::construct(@_);
-    bless $self->participants, 'Elive::Array';
-    $self;
-}
-
-
-=head2 retrieve_all
-
-Retrieve the participant list for this meeting.
-
-my $participant_list
-    = Elive::Entity::Participant
-        ->retrieve_all([$meeting_id])->[0];
-
-=cut
-
-sub retrieve_all {
+sub _retrieve_all {
     my $class = shift;
     my $vals = shift;
     my %opt = @_;
@@ -108,8 +116,9 @@ sub retrieve_all {
     #
     # No getXxxx adapter use listXxxx
     #
-    return $class->SUPER::retrieve_all($vals, %opt,
-				      adapter => 'listParticipants');
+    return $class->SUPER::_retrieve_all($vals,
+				       adapter => 'listParticipants',
+				       %opt);
 }
 
 sub _freeze {
@@ -122,19 +131,32 @@ sub _freeze {
     if (my $participants = delete $frozen->{participants}) {
 	#
 	# NOTE: thawed data is returned as the 'participants' property.
-        # but for frozen data the parmeter name is 'users'. Also
-        # setter methods expect a stringified digest in the form
+	# but for frozen data the parmeter name is 'users'. Also
+	# setter methods expect a stringified digest in the form
 	#  userid=roleid[;userid=roleid]
 	#
+	#
+	# allow prefrozen
+	#
+	my $reftype = Elive::Util::_reftype($participants);
 
-	die "expected participants to be an ARRAY"
-	    unless (Elive::Util::_reftype($participants) eq 'ARRAY');
+	my $users_frozen;
 
-	my @users = map {
-	    Elive::Entity::Participant->stringify($_);
-	} @$participants;
+	if ($reftype) {
+	    die "expected participants to be an ARRAY, found $reftype"
+		unless ($reftype eq 'ARRAY');
 
-	$frozen->{users} = join(';', @users);
+	    my @users = map {
+		Elive::Entity::Participant->stringify($_);
+	      } @$participants;
+
+	    $users_frozen = join(';', @users);
+	}
+	else {
+	    $users_frozen = $participants;
+	}
+
+	$frozen->{users} = $users_frozen;
     }
 
     return $frozen;
@@ -155,14 +177,14 @@ Insert meeting participants
 
 =cut
 
-sub insert {
+sub _insert_class {
     my $class = shift;
     my $data = shift;
     my %opt = @_;
 
-    $class->SUPER::insert($data,
-			  adapter => 'setParticipantList',
-			  %opt);
+    $class->SUPER::_insert_class($data,
+				 adapter => 'setParticipantList',
+				 %opt);
 }
 
 =head2 update
@@ -201,7 +223,7 @@ sub _readback {
     return $class->SUPER::_readback($som, $updates, @_)
 	if Elive::Util::_reftype($result);
     #
-    # Ok, we need to handle our own readbaOAck.
+    # Ok, we need to handle our own readback.
     #
     $class->_check_for_errors($som);
 

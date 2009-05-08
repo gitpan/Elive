@@ -7,11 +7,11 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.14
+Version 0.15
 
 =cut
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 
 use base qw{Class::Data::Inheritable};
 
@@ -77,10 +77,12 @@ BEGIN {
      Elive->connect('http://myServer.com/test2', user2, pass2);
      my $e2 = Elive->connection;
 
-    Connects to an Elluminate Server instance. Dies if the connection could
+    Connects to an Elluminate server instance. Dies if the connection could
     not be established. For example the connection or user login failed.
 
     The login user must be an Elluminate Live system administrator account.
+
+    See also Elive::Connection.
 
 =cut
 
@@ -211,10 +213,13 @@ sub debug {
 #
 sub _get_test_auth {
     my $class = shift;
+    my %opt = @_;
 
-    my $user = $ENV{ELIVE_TEST_USER};
-    my $pass = $ENV{ELIVE_TEST_PASS};
-    my $url  = $ENV{ELIVE_TEST_URL};
+    my $suffix = $opt{suffix} || '';
+
+    my $user = $ENV{'ELIVE_TEST_USER'.$suffix};
+    my $pass = $ENV{'ELIVE_TEST_PASS'.$suffix};
+    my $url  = $ENV{'ELIVE_TEST_URL'.$suffix};
 
     my %result;
 
@@ -222,7 +227,7 @@ sub _get_test_auth {
 	$result{auth} = [$url, $user, $pass];
     }
     else {
-	$result{reason} = 'need to set $ELIVE_TEST_{USER|PASS|URL}';
+	$result{reason} = 'need to set $ELIVE_TEST_{USER|PASS|URL}'.$suffix;
     }
 
     return %result;
@@ -374,7 +379,7 @@ the primary key for the entity table. e.g:
 
 The equivalent Elive method call for the above is
 
-    my $participants =  Elive::Entity::MeetingParticpant->retrieve_all(1234567);
+    my $participants =  Elive::Entity::MeetingParticpant->retrieve([1234567]);
 
 Also be careful to avoid selecting large amounts of data, e.g. all users.
 
