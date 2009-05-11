@@ -7,11 +7,11 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.15
+Version 0.16
 
 =cut
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 use base qw{Class::Data::Inheritable};
 
@@ -40,11 +40,12 @@ use Elive::Connection;
 
 =head1 DESCRIPTION
 
-Elive is designed to assist in the integration and automation of
-Elluminate Live sites. In particular, managing users and meetings.
+Elive is a set of Perl modules for the integration and automation of
+Elluminate Live sites. In particular, it aids in the managment of users
+and meetings.
 
-It provides Perl object bindings to entities via the Elluminate Live
-SOAP/XML command interface.
+It provides convenient Perl object bindings to entities. These are accessed
+via the Elluminate Live SOAP/XML command interface.
 
 =head1 BACKGROUND
 
@@ -118,7 +119,7 @@ sub connect {
      $e1 = Elive->connection
          or warn 'no elive connection active';
 
-     Returns an Elive connection handle.
+     Returns the default Elive connection handle.
 
 =cut
 
@@ -126,7 +127,7 @@ __PACKAGE__->mk_classdata('connection');
 
 =head2 login
 
-return the user entity used to connect to the server
+Returns the login user for the default connection.
 
 =cut
 
@@ -144,7 +145,7 @@ sub login {
 
 =head2 server_details
 
-return the server details for entity for the current connection.
+Returns the server details for the default connection.
 
 =cut
 
@@ -162,8 +163,8 @@ sub server_details {
     
 =head2 disconnect
 
-Disconnect from elluminate. It is recommended that you do this prior to
-exiting your program
+Disconnects the default Elluminate connection. It is recommended that you
+do this prior to exiting your program.
 
 =cut
 
@@ -238,6 +239,7 @@ our %KnownAdapters;
 BEGIN {
     @KnownAdapters{qw(
 addGroupMember addMeetingPreload attendanceNotification changePassword
+buildMeetingJNLP
 checkMeetingPreload createGroup createMeeting createPreload createRecording
 createUser deleteGroup deleteMeeting deleteParticipant deleteRecording
 deletePreload deleteUser getGroup getMeeting getMeetingParameters getPreload
@@ -265,8 +267,11 @@ sub check_adapter {
     my $adapter = shift
 	or die 'usage: $class->known_adapter($name)';
 
+    my %known_adapters;
+    @known_adapters{$class->known_adapters} = undef;
+
     die "Uknown adapter: $adapter"
-	unless exists $KnownAdapters{$adapter};
+	unless exists $known_adapters{$adapter};
 
     return $adapter;
 }
@@ -352,6 +357,51 @@ configuration file. Please follow the instructions in the README file
 for instructions on detecting and repairing missing adapters.
 
 =back
+
+=cut
+
+sub _check_for_errors {
+    my $class = shift;
+    my $som = shift;
+
+    die $som->fault->{ faultstring } if ($som->fault);
+
+    my $result = $som->result;
+
+    warn "result: ".YAML::Dump($result)
+	if ($class->debug);
+
+    if(!Elive::Util::_reftype($result)) {
+	#
+	# Simple scalar
+	#
+	return;
+    }
+    
+    #
+    # Look for Elluminate-specific errors
+    #
+    if (my $code = $result->{Code}{Value}) {
+
+	#
+	# Elluminate error!
+	#
+	
+	my $reason = $result->{Reason}{Text};
+
+	my $trace = $result->{Detail}{Stack}{Trace};
+	my @stacktrace;
+	if ($trace) {
+	    @stacktrace = (Elive::Util::_reftype($trace) eq 'ARRAY'
+			   ? @$trace
+			   : $trace);
+
+	}
+
+	my @error = grep {defined} ($code, $reason, @stacktrace);
+	die join(' ', @error) || YAML::Dump($result);
+    }
+}
 
 =head1 SCRIPTS
 
@@ -487,9 +537,14 @@ in widespread use do). However, it specifically mentions SQL Server or Oracle.
 =item LDAP Authentication
 
 Elluminate Live can also be configured to use an LDAP repository for
-user authentication.  Users can still be retrieved or listed. However
-updates and deletes are not supported by the LDAP DAO adapter. See also
-Net::LDAP.
+user authentication.  Users can still be retrieved or listed.
+
+Note also, that if you don't define a LDAP mapping for the userId, the LDAP
+DAO aliases the userId to loginName.
+
+However updates and deletes are not supported by the LDAP DAO adapter. You
+may also want to consider using another module such as Net::LDAP, to access
+and maintain the repository.
 
 =back
 

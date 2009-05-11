@@ -34,13 +34,11 @@ sub-structure.
 sub parse_type {
     my $type = shift;
 
-    ($type) = split(/\|/, $type);
-    my $is_array = ($type =~ s{^ArrayRef\[ ([^\]]*) \] $}{$1}x);
-
     #
-    # May also be in the format primary-type[|type2[|type3]]
+    # ArrayRef[Elive::Entity::User]
     #
-    ($type) = split(/\|/, $type);
+    ($type) = split(/[ \| \] ]/x, $type);
+    my $is_array = ($type =~ s{^ArrayRef\[}{}x);
 
     my $is_struct = $type =~ m{^Elive::(Struct||Entity)(::|$)};
 ##    my $is_struct = UNIVERSAL::isa($type, 'Elive::Struct');
@@ -52,7 +50,7 @@ sub _freeze {
     my ($val, $type, $context) = @_;
 
     for ($val) {
-	if ($type =~ m{Bool}i) {
+	if ($type =~ m{^Bool}i) {
 
 	    #
 	    # DBize boolean flags..
@@ -60,12 +58,16 @@ sub _freeze {
 	    $_ =  $_ ? 'true' : 'false'
 		if defined;
 	}
-	elsif ($type =~ m{Int}i) {
+	elsif ($type =~ m{^Int}i) {
 	    
 	    $_ = _tidy_decimal($_)
 		if defined;
 	}
     }
+
+    warn "undefined value of type $type"
+	unless defined $val;
+
     return $val;
 }
 
