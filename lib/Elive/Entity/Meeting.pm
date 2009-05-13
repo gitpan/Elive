@@ -7,6 +7,7 @@ use Elive::Entity;
 use base qw{ Elive::Entity };
 
 use Elive::Util;
+use Elive::Entity::Preload;
 
 =head1 NAME
 
@@ -79,7 +80,7 @@ has 'name' => (is => 'rw', isa => 'Str', required => 1,
 
 =cut
 
-sub _insert_class {
+sub insert {
     my $class = shift;
     my $data = shift;
     my %opt = @_;
@@ -98,7 +99,7 @@ sub _insert_class {
 	    if exists $data->{$_}
     }
 
-    $class->SUPER::_insert_class($data, %opt);
+    $class->SUPER::insert($data, %opt);
 }
 
 =head2 update
@@ -407,7 +408,16 @@ sub _thaw {
 					  user => userId|userName,
 					  pass => password);
 
-Build one of those JNLP thingos.
+Builds a JNLP for the meeting.
+
+JNLP is the 'Java Network Launch Protocol', also commonly known as Java
+WebStart. You can render this as a web page with mime type
+C<application/x-java-jnlp-file>.
+
+Under Windows, and other desktops, you can save this to a file with extension
+C<JNLP>.
+
+See also L<http://en.wikipedia.org/wiki/JNLP>.
 
 =cut
 
@@ -436,7 +446,7 @@ sub buildJNLP {
 
     for (delete $opt{user} || $connection->login->userId) {
 
-	$soap_params{m{^\d+$}? 'userid' : 'userName'} = Elive::Util::_freeze($_, 'Str');
+	$soap_params{m{^\d+$}? 'userId' : 'userName'} = Elive::Util::_freeze($_, 'Str');
     }
 
     my $adapter = $self->check_adapter('buildMeetingJNLP');
@@ -450,6 +460,21 @@ sub buildJNLP {
     my $results = $self->_unpack_as_list($som->result);
 
     return @$results && Elive::Util::_thaw($results->[0], 'Str');
+}
+
+=head2 list_preloads
+
+    my $preloads = $meeting_obj->list_preloads;
+
+Lists all preloads associated with the meeting.
+
+=cut
+
+sub list_preloads {
+    my $self = shift;
+
+    return Elive::Entity::Preload
+	->list_meeting_preloads($self->meetingId,@_);
 }
     
 =head1 SEE ALSO

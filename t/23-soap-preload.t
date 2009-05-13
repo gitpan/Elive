@@ -70,7 +70,8 @@ SKIP: {
 	start => time() . '000',
 	end => (time()+900) . '000',
 	privateMeeting => 1,
-    }));
+    }),
+	'inserted meeting');
 
     $preloads[1] = Elive::Entity::Preload->upload(
     {
@@ -111,7 +112,7 @@ SKIP: {
     ok($check, 'check_meeting after add - returns true');
 
     my $preloads_list;
-    lives_ok(sub {$preloads_list = Elive::Entity::Preload->list_meeting_preloads($meeting)},
+    lives_ok(sub {$preloads_list = $meeting->list_preloads},
 	     'list_meeting_preloads - lives');
 
     isa_ok($preloads_list, 'ARRAY', 'preloads list');
