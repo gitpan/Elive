@@ -7,11 +7,11 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.17
+Version 0.18
 
 =cut
 
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 
 use base qw{Class::Data::Inheritable};
 
@@ -29,7 +29,7 @@ use Elive::Connection;
 
     foreach my $user (@$users) {
 
-        printf ("changing last name for user: %s\n", $user->loginName)
+        printf ("changing last name for user: %s\n", $user->loginName);
 
         $user->lastName('Smith');
         $user->update;
@@ -45,7 +45,7 @@ Elluminate Live sites. In particular, it aids in the managment of users
 and meetings.
 
 It provides convenient Perl object bindings to entities. These are accessed
-via the Elluminate Live SOAP/XML command interface.
+and updated via the Elluminate Live SOAP/XML command interface.
 
 =head1 BACKGROUND
 
@@ -57,8 +57,8 @@ conferences, seminars and IT deployment, training and support.
 Users, Meetings and other resources are stored in a management database.
 These can managed via the Elluminate Live web interface.
 
-Most actions that can be performed via the web interface can also be
-driven from Elluminate Live's SOAP/XML command interface.
+Most actions that can be performed via the web interface are also
+available from Elluminate Live's SOAP/XML command interface.
 
 =cut
 
@@ -199,11 +199,6 @@ sub debug {
 	my $debug = shift || 0;
 
 	$DEBUG = $debug;
-
-	SOAP::Lite::import($debug >= 3
-			   ? (+trace => 'debug')
-			   : ()
-	    );
     }
 
     return $DEBUG || 0;
