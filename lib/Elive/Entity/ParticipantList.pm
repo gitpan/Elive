@@ -7,6 +7,7 @@ use Mouse::Util::TypeConstraints;
 use Elive::Entity;
 use base qw{Elive::Entity};
 
+use Elive::Entity::Meeting;
 use Elive::Entity::Participant;
 use Elive::Util;
 use Elive::Array;
@@ -18,20 +19,6 @@ __PACKAGE__->primary_key('meetingId');
 
 has 'participants' => (is => 'rw', isa => 'ArrayRef[Elive::Entity::Participant]|Elive::Array',
     coerce => 1);
-
-sub _parse_participant {
-    local ($_) = shift;
-
-    m{^ \s* (.*?) \s* (= ([0-3]) \s*)? $}x
-	or die "'$_' not in format: userId=role";
-
-    my $userId = $1;
-    my $roleId = $3;
-    $roleId = 3 unless defined $roleId;
-
-    return {user => {userId => $userId},
-	    role => {roleId => $roleId}};
-}
 
 coerce 'ArrayRef[Elive::Entity::Participant]' => from 'ArrayRef[HashRef]'
           => via {
@@ -132,6 +119,20 @@ sub _freeze {
     return $frozen;
 }
 
+sub _parse_participant {
+    local ($_) = shift;
+
+    m{^ \s* (.*?) \s* (= ([0-3]) \s*)? $}x
+	or die "'$_' not in format: userId=role";
+
+    my $userId = $1;
+    my $roleId = $3;
+    $roleId = 3 unless defined $roleId;
+
+    return {user => {userId => $userId},
+	    role => {roleId => $roleId}};
+}
+
 =head2 insert
 
 Note that for inserts, you only need to include the userId in the
@@ -160,6 +161,8 @@ The participants may also be specified as an array ref:
     },
     );
 
+Note that if you empty the participant list, C<reset> will be called.
+
 =cut
 
 sub insert {
@@ -167,8 +170,24 @@ sub insert {
     my $data = shift;
     my %opt = @_;
 
+    my $participants = $data->{participants};
+
+    #
+    # have a peak at the participantList, if it's empty,
+    # we need to call the clearParticipantList adapter.
+    #
+
+    if ((!defined $participants)
+	|| (Elive::Util::_reftype($participants) eq 'ARRAY' && !@$participants)
+	|| $participants eq '') {
+
+	goto sub {$class->reset(%opt)};
+    }
+
+    my $adapter = $class->check_adapter('setParticipantList');
+
     $class->SUPER::insert($data,
-			  adapter => 'setParticipantList',
+			  adapter => $adapter,
 			  %opt);
 }
 
@@ -181,7 +200,9 @@ sub insert {
     $participant_list->particpants->add($late_comer);
     $participant_list->update;
 
-Update meeting participants
+Update meeting participants.
+
+Note that if you empty the participant list, C<reset> will be called.
 
 =cut
 
@@ -190,9 +211,50 @@ sub update {
     my $data = shift;
     my %opt = @_;
 
+    my $participants = $data->{participants};
+
+    if ((!defined $participants)
+	|| (Elive::Util::_reftype($participants) eq 'ARRAY' && !@$participants)
+	|| $participants eq '') {
+
+	goto sub {$class->reset(%opt)};
+    }
+
+    my $adapter = $opt{adapter} || $class->check_adapter('setParticipantList');
+
     $class->SUPER::update($data,
-			  adapter => 'setParticipantList',
+			  adapter => $adapter,
 			  %opt);
+}
+
+
+=head2 reset 
+
+    $participant_list->reset
+
+Reset the participant list. This will leave only the facilitator as
+the only participant, with a role of 2 (moderator).
+
+=cut
+
+sub reset {
+    my $self = shift;
+    my %opt = @_;
+
+    #
+    # Seems that the returned value of the list will be just the meeting
+    # faciliator as a moderator.
+    #
+    my $meeting = Elive::Entity::Meeting->retrieve([$self->meetingId],
+						   reuse => 1,
+	);
+
+    $self->participants([{user => $meeting->facilitatorId, role => 2}]);
+
+    $self->SUPER::update(undef,
+			 adapter => 'resetParticipantList',
+			 %opt,
+	);
 }
 
 sub _readback {
