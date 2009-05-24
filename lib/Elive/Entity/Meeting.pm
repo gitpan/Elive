@@ -28,25 +28,26 @@ __PACKAGE__->collection_name('Meetings');
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
 __PACKAGE__->primary_key('meetingId');
 
+has 'name' => (is => 'rw', isa => 'Str', required => 1,
+	       documentation => 'meeting name',
+    );
+
+has 'start' => (is => 'rw', isa => 'HiResDate', required => 1,
+		documentation => 'meeting start time');
+
+has 'end' => (is => 'rw', isa => 'HiResDate', required => 1,
+	      documentation => 'meeting end time');
+
 has 'password' => (is => 'rw', isa => 'Str',
-		   documentation => 'meeting password (optional)');
+		   documentation => 'meeting password');
 
 has 'deleted' => (is => 'rw', isa => 'Bool');
 
 has 'facilitatorId' => (is => 'rw', isa => 'Str',
 			documentation => 'userId of facilator');
 
-has 'start' => (is => 'rw', isa => 'Int', required => 1,
-		documentation => 'meeting start time (hires)');
-
-has 'privateMeeting' => (is => 'rw', isa => 'Bool');
-
-has 'end' => (is => 'rw', isa => 'Int', required => 1,
-	      documentation => 'meeting end time (hires)');
-
-has 'name' => (is => 'rw', isa => 'Str', required => 1,
-	       documentation => 'meeting name',
-    );
+has 'privateMeeting' => (is => 'rw', isa => 'Bool',
+			 documentation => "don't display meeting in public schedule");
 
 =head1 METHODS
 
@@ -60,8 +61,8 @@ has 'name' => (is => 'rw', isa => 'Str', required => 1,
     # Simple case, single meeting
     #
     my $meeting = Elive::Entity::Meeting->insert({
-        start => hires_time,
-        end => hires_time,
+        start => time,
+        end => time,
         name => string,
         password => string,
         seats => int,
@@ -107,8 +108,8 @@ sub insert {
 =head3 synopsis
 
     my $meeting = Elive::Entity::Meeting->update({
-        start => hires_time,
-        end => hires_time,
+        start => time,
+        end => time,
         name => string,
         password => string,
         seats => int,
@@ -140,6 +141,8 @@ sub update {
 
 =head2 list_user_meetings_by_date
 
+List all meetings over a given date range.
+
 =head3 synopsis
 
    $meetings_array_ref
@@ -155,7 +158,7 @@ sub update {
    my $next_week = $now->clone->add(days => 7);
 
    my $meetings = Elive::Entity::Meeting->list_user_meetings_by_date(
-    [$user_id, $now->epoch * 1000, $next_week->epoch * 1000]
+    [$user_id, $now->epoch.'000', $next_week->epoch.'000']
   )
 
 =head3 description
@@ -178,7 +181,7 @@ sub list_user_meetings_by_date {
     my %fetch_params;
     $fetch_params{userId} = Elive::Util::_freeze(shift @$params,'Str');
     @fetch_params{qw{startDate endDate}}
-    = map {Elive::Util::_freeze($_,'Int')} @$params; 
+    = map {my $d = Elive::Util::_freeze($_,'HiResDate')} @$params; 
 
     my $adapter = $class->check_adapter('listUserMeetingsByDate');
 
@@ -236,9 +239,9 @@ sub web_url {
     my $url = $connection->url;
 
     my %Actions = (
-	'join'   => '%s/join_meeting.html?meetingId=%ld',
-	'edit'   => '%s/modify_meeting.event?meetingId=%ld',
-	'delete' => '%s/delete_meeting?meetingId=%ld',
+	'join'   => '%s/join_meeting.html?meetingId=%s',
+	'edit'   => '%s/modify_meeting.event?meetingId=%s',
+	'delete' => '%s/delete_meeting?meetingId=%s',
 	);
 
     my $action = $opt{action} || 'join';
@@ -395,6 +398,50 @@ sub _thaw {
 
     return $data;
 }
+
+=head2 remove_preload
+
+    $meeting_obj->remove_preload($preload_id_or_obj);
+
+Remove a particular preload from the meeting.
+
+Note that the preload object is not actually deleted, just disassociated
+from the meeting and will continue to exist as a resource on the server.
+
+You don't need to call this method if you simply intend to delete the
+preload. This system will remove it from any meetings for you.
+
+=cut
+
+sub remove_preload {
+    my $self = shift;
+    my $preload_id = shift;
+    my %opt = @_;
+
+    my $meeting_id = $self->meetingId;
+
+    die 'unable to get a meeting_id'
+	unless $meeting_id;
+
+    $preload_id = $preload_id->preloadId
+	if ref($preload_id);
+
+    die 'unable to get a preload_id'
+	unless $preload_id;
+
+    my $connection = $opt{connection} || $self->connection
+	or die "not connected";
+
+    my $adapter = $self->check_adapter('deleteMeetingPreload');
+
+    my $som = $connection->call($adapter,
+				meetingId => Elive::Util::_freeze($meeting_id, 'Int'),
+				preloadId => Elive::Util::_freeze($preload_id, 'Int'),
+				);
+
+    $self->_check_for_errors($som);
+}
+    
 
 =head2 buildJNLP 
 

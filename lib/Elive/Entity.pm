@@ -154,7 +154,7 @@ sub construct {
     @known_properties{$class->properties} = undef;
 
     foreach (keys %$data) {
-	warn "unknown property $_"
+	warn "$class: unknown property $_"
 	    unless exists $known_properties{$_};
     }
 
@@ -1070,6 +1070,20 @@ sub _not_available {
     die "this operation is not available for ". $self->entity_name;
 }
 
+#
+# Shared subtypes
+#
+BEGIN {
+
+    #
+    # try to catch using a regular date instead of a hi-res date
+    #
+    subtype 'HiResDate'
+	=> as 'Int'
+	=> where {m{^\d+$} && length($_) > 10
+			or warn "doesn't look like a hi-res date: $_" }
+        => message {"invalid date: $_"};
+}
 #
 # Bring all our kids in
 #

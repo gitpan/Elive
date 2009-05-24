@@ -207,22 +207,28 @@ Note that if you empty the participant list, C<reset> will be called.
 =cut
 
 sub update {
-    my $class = shift;
+    my $self = shift;
     my $data = shift;
     my %opt = @_;
 
     my $participants = $data->{participants};
+    $participants = $self->participants
+	unless defined $participants;
 
     if ((!defined $participants)
 	|| (Elive::Util::_reftype($participants) eq 'ARRAY' && !@$participants)
 	|| $participants eq '') {
 
-	goto sub {$class->reset(%opt)};
+	#
+	# treat an empty list as an implied reset. The 'setParticipantList'
+        # adapter will barf otherwise.
+	#
+	goto sub {$self->reset(%opt)};
     }
 
-    my $adapter = $opt{adapter} || $class->check_adapter('setParticipantList');
+    my $adapter = $opt{adapter} || $self->check_adapter('setParticipantList');
 
-    $class->SUPER::update($data,
+    $self->SUPER::update($data,
 			  adapter => $adapter,
 			  %opt);
 }
@@ -232,7 +238,7 @@ sub update {
 
     $participant_list->reset
 
-Reset the participant list. This will leave only the facilitator as
+Reset the participant list. This will set the meeting facilitator as
 the only participant, with a role of 2 (moderator).
 
 =cut
@@ -241,17 +247,25 @@ sub reset {
     my $self = shift;
     my %opt = @_;
 
-    #
-    # Seems that the returned value of the list will be just the meeting
-    # faciliator as a moderator.
-    #
-    my $meeting = Elive::Entity::Meeting->retrieve([$self->meetingId],
-						   reuse => 1,
-	);
+    my $meeting_id = $self->meetingId
+	or die "unable to get meetingId";
 
-    $self->participants([{user => $meeting->facilitatorId, role => 2}]);
+    my $meeting = Elive::Entity::Meeting->retrieve([$meeting_id],
+						   reuse => 1)
+	or die "meeting not found: ".$meeting_id;
 
-    $self->SUPER::update(undef,
+    my $facilitator_id = $meeting->facilitatorId
+	or die "no facilitator found for meeting: $meeting_id";
+
+    #
+    # Expect the list to be set to just include the meeting facilitator
+    # as a moderator (role = 2). Set it now, and confirm this in the
+    # readback.
+    #
+    my %updates
+	= (participants => [{user => $facilitator_id, role => 2}]);
+
+    $self->SUPER::update(\%updates,
 			 adapter => 'resetParticipantList',
 			 %opt,
 	);

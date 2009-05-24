@@ -1,6 +1,6 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 18;
+use Test::More tests => 23;
 use Test::Exception;
 
 package main;
@@ -10,6 +10,7 @@ BEGIN {
 	use_ok( 'Elive::Connection' );
 	use_ok( 'Elive::Entity::User' );
 	use_ok( 'Elive::Entity::Preload' );
+	use_ok( 'Elive::Entity::Meeting' );
 	use_ok( 'Elive::Entity::MeetingParameters' );
 }
 
@@ -78,10 +79,28 @@ lives_ok(
     "ineffective primary key update - lives"
     );
 
-dies_ok(
-    sub {$user_data->set('noSuchField', 'die you ^&*#@')},
-    "setter on unknown field - dies"
+my %valid_meeting_data = (meetingId => 1111111,
+		    name => 'test',
+		    start => '1234567890123',
+		    end => '1234567890123'
+	);
+
+lives_ok(
+    sub {Elive::Entity::Meeting->construct(\%valid_meeting_data)},
+	 'construct meeting with valid data - lives'
     );
+
+
+foreach (qw(meetingId name start end)) {
+
+    my %bad_meeting_data = %valid_meeting_data;
+    delete $bad_meeting_data{$_};
+
+    dies_ok(
+	sub {Elive::Entity::Meeting->construct(\%bad_meeting_data)},
+	"meeting with missing $_ - dies"
+	);
+}
 
 lives_ok(
 	 sub {Elive::Entity::MeetingParameters->construct
