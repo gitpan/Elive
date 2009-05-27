@@ -7,11 +7,11 @@ Elive -  Elluminate Live (c) client library
 
 =head1 VERSION
 
-Version 0.21
+Version 0.22
 
 =cut
 
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 
 use base qw{Class::Data::Inheritable};
 
@@ -41,7 +41,7 @@ use Elive::Connection;
 =head1 DESCRIPTION
 
 Elive is a set of Perl modules for the integration and automation of
-Elluminate Live sites. In particular, it aids in the managment of users
+Elluminate Live sites. In particular, it aids in the management of users
 and meetings.
 
 It provides convenient Perl object bindings to entities. These are accessed
@@ -78,12 +78,12 @@ BEGIN {
      Elive->connect('http://myServer.com/test2', user2, pass2);
      my $e2 = Elive->connection;
 
-    Connects to an Elluminate server instance. Dies if the connection could
-    not be established. For example the connection or user login failed.
+Connects to an Elluminate server instance. Dies if the connection could
+not be established. For example the connection or user login failed.
 
-    The login user must be an Elluminate Live system administrator account.
+The login user must be an Elluminate Live system administrator account.
 
-    See also Elive::Connection.
+See also Elive::Connection.
 
 =cut
 
@@ -119,7 +119,7 @@ sub connect {
      $e1 = Elive->connection
          or warn 'no elive connection active';
 
-     Returns the default Elive connection handle.
+Returns the default Elive connection handle.
 
 =cut
 
@@ -288,7 +288,7 @@ our %Meta_Data_Accessor;
 
 =head2 has_metadata
 
-Create or reuse an inside-out accessor
+Create or reuse an inside-out accessor to hold object metadata.
 
 =cut
 
