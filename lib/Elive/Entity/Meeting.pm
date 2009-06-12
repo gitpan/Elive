@@ -9,6 +9,8 @@ use base qw{ Elive::Entity };
 use Elive::Util;
 use Elive::Entity::Preload;
 use Elive::Entity::Recording;
+use Elive::Entity::MeetingParameters;
+use Elive::Entity::ServerParameters;
 
 =head1 NAME
 
@@ -192,68 +194,6 @@ sub list_user_meetings_by_date {
 	);
 }
 
-=head2 web_url
-
-Utility method to return various website links for the meeting. This is
-available as both class level and object level methods.
-
-=head3 Examples
-
-    #
-    # Class level access.
-    #
-    my $url = Elive::Entity::Meeting->web_url(
-                     meeting_id => $meeting_id,
-                     action => 'join',    # join|edit|...
-                     connection => $my_connection);  # optional
-
-
-    #
-    # Object level.
-    #
-    my $meeting = Elive::Entity::Meeting->retrieve([$meeting_id]);
-    my $url = meeting->web_url(action => 'join');
-
-=cut
-
-sub web_url {
-    my $self = shift;
-    my %opt = @_;
-
-    my $meeting_id = $opt{meeting_id};
-    my $connection = $opt{connection} || $self->connection
-	or die "not connected";
-
-    if (ref($self)) {
-	#
-	# dealing with an object
-	#
-	$meeting_id ||= $self->meetingId;
-    }
-    elsif (ref($meeting_id)) {  # an object
-	$meeting_id = $meeting_id->meetingId;
-    }
-
-    die "no meeting_id given"
-	unless $meeting_id;
-
-    my $url = $connection->url;
-
-    my %Actions = (
-	'join'   => '%s/join_meeting.html?meetingId=%s',
-	'edit'   => '%s/modify_meeting.event?meetingId=%s',
-	'delete' => '%s/delete_meeting?meetingId=%s',
-	);
-
-    my $action = $opt{action} || 'join';
-
-    die "unrecognised action: $action"
-	unless exists $Actions{$action};
-
-    return sprintf($Actions{$action},
-		   $url, $meeting_id);
-}
-
 =head2 add_preload
 
     my $meeting = Elive::Entity::Meeting->retrieve($meeting_id);
@@ -415,6 +355,7 @@ sub _readback_check {
 sub _thaw {
     my $class = shift;
     my $db_data = shift;
+
     my $data = $class->SUPER::_thaw($db_data, @_);
 
     if ($data->{Adapter}) {
@@ -477,6 +418,20 @@ sub remove_preload {
     $self->_check_for_errors($som);
 }
     
+=head2 list_preloads
+
+    my $preloads = $meeting_obj->list_preloads;
+
+Lists all preloads associated with the meeting.
+
+=cut
+
+sub list_preloads {
+    my $self = shift;
+
+    return Elive::Entity::Preload
+        ->list_meeting_preloads($self->meetingId,@_);
+}
 
 =head2 buildJNLP 
 
@@ -538,19 +493,100 @@ sub buildJNLP {
     return @$results && Elive::Util::_thaw($results->[0], 'Str');
 }
 
-=head2 list_preloads
+=head2 web_url
 
-    my $preloads = $meeting_obj->list_preloads;
+Utility method to return various website links for the meeting. This is
+available as both class level and object level methods.
 
-Lists all preloads associated with the meeting.
+=head3 Examples
+
+    #
+    # Class level access.
+    #
+    my $url = Elive::Entity::Meeting->web_url(
+                     meeting_id => $meeting_id,
+                     action => 'join',    # join|edit|...
+                     connection => $my_connection);  # optional
+
+
+    #
+    # Object level.
+    #
+    my $meeting = Elive::Entity::Meeting->retrieve([$meeting_id]);
+    my $url = meeting->web_url(action => 'join');
 
 =cut
 
-sub list_preloads {
+sub web_url {
+    my $self = shift;
+    my %opt = @_;
+
+    my $meeting_id = $opt{meeting_id};
+    my $connection = $opt{connection} || $self->connection
+	or die "not connected";
+
+    if (ref($self)) {
+	#
+	# dealing with an object
+	#
+	$meeting_id ||= $self->meetingId;
+    }
+    elsif (ref($meeting_id)) {  # an object
+	$meeting_id = $meeting_id->meetingId;
+    }
+
+    die "no meeting_id given"
+	unless $meeting_id;
+
+    my $url = $connection->url;
+
+    my %Actions = (
+	'join'   => '%s/join_meeting.html?meetingId=%s',
+	'edit'   => '%s/modify_meeting.event?meetingId=%s',
+	'delete' => '%s/delete_meeting?meetingId=%s',
+	);
+
+    my $action = $opt{action} || 'join';
+
+    die "unrecognised action: $action"
+	unless exists $Actions{$action};
+
+    return sprintf($Actions{$action},
+		   $url, $meeting_id);
+}
+
+=head2 parameters
+
+    my $meeting = Elive::Entity::Meeting->retrieve([$meeting_id]);
+    my $meeting_params = $meeting->parameters;
+
+Utility method to return the meeting parameters associated with a meeting.
+See also L<Elive::Entity::MeetingParameters>.
+
+=cut
+
+sub parameters {
     my $self = shift;
 
-    return Elive::Entity::Preload
-        ->list_meeting_preloads($self->meetingId,@_);
+    return Elive::Entity::MeetingParameters->retrieve([$self->meetingId],
+						     @_);
+}
+
+=head2 server_parameters
+
+    my $meeting = Elive::Entity::Meeting->retrieve([$meeting_id]);
+    my $server_params = $meeting->server_parameters;
+
+Utility method to return the server parameters associated with a meeting.
+See also L<Elive::Entity::ServerParameters>.
+
+=cut
+
+sub server_parameters {
+    my $self = shift;
+
+    return Elive::Entity::ServerParameters->retrieve([$self->meetingId],
+						     @_);
 }
 
 =head2 list_recordings
