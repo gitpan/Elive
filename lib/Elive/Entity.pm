@@ -807,7 +807,7 @@ sub update {
     my $db_data = $self->construct(Elive::Util::_clone($self),
 	copy => 1);
     #
-    # Make sure our db data hasn't got db data!
+    # Make sure our db data doesn't have db data!
     #
     $db_data->_db_data(undef);
     $self->_db_data($db_data);
@@ -888,9 +888,10 @@ sub _fetch {
 	);
 
     my $rows = $class->_process_results($results, %opt);
+    return $rows if $opt{raw};
     #
     # 0 results => not found. Would be treated by readback as an error,
-    # but actually ok here.
+    # but perfectly valid here. Just means we didn't find a matching entity.
     #
     return []
 	unless @$rows;
