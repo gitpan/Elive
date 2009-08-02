@@ -525,6 +525,7 @@ sub _readback_check {
     my $class = shift;
     my $updates = shift;
     my $rows = shift;
+    my %opt = @_;
 
     #
     # Create and update responses generally return a copy of the
@@ -544,7 +545,8 @@ sub _readback_check {
 		my $write_val =  $updates->{$_};
 		my $read_val = $row->{$_};
 
-		if ($class->_cmp_col($_, $write_val,  $read_val)) {
+		if ($class->_cmp_col($class->property_types->{$_},
+				     $write_val,  $read_val, %opt)) {
 		    warn YAML::Dump({read => $read_val, write => $write_val})
 			if ($class->debug);
 
@@ -588,7 +590,7 @@ sub is_changed {
 	my $old = $db_data->$col;
 	if (defined ($new) != defined ($old)
 	    || Elive::Util::_reftype($new) ne Elive::Util::_reftype($old)
-	    || $self->_cmp_col($col,$new,$old)) {
+	    || $self->_cmp_col($self->property_types->{$col}, $new, $old)) {
 
 	    push (@updated_properties, $col);
 	}
@@ -778,7 +780,9 @@ sub update {
 
 	die 'primary key field $_ updated - refusing to save'
 	    if (exists $primary_key{ $_ }
-		&& $self->_cmp_col($_, $self->_db_data->{ $_ }, $updates{ $_ }));
+		&& $self->_cmp_col($self->property_types->{$_},
+				   $self->_db_data->{ $_ },
+				   $updates{ $_ }));
     }
 
     my $db_updates = $self->_freeze(\%updates, mode => 'update');
@@ -963,7 +967,7 @@ sub retrieve {
 =head2 _retrieve_all
 
     my $participants
-          = Elive::Entity::ParticpiantList->_retrieve_all($meeting_id)
+          = Elive::Entity::ParticipantList->_retrieve_all($meeting_id)
 
 Retrieve entity objects by partial primary key.
 
