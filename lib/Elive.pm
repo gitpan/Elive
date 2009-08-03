@@ -7,13 +7,16 @@ Elive -  Elluminate Live! (c) client library
 
 =head1 VERSION
 
-Version 0.35
+Version 0.36
 
 =cut
 
-our $VERSION = '0.35';
+our $VERSION = '0.36';
 
+use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
+
+use YAML;
 
 =head1 SYNOPSIS
 
