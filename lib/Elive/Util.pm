@@ -5,6 +5,7 @@ use Term::ReadKey;
 use Term::ReadLine;
 use Scalar::Util;
 use Storable;
+use UNIVERSAL;
 
 use YAML;
 
@@ -234,12 +235,25 @@ If it's an object that implements the C<stringify> method, use this.
 =cut
 
 sub string {
-    for ($_[0]) {
+    my $obj = shift;
+    my $data_type = shift;
+
+    for ($obj) {
+
+	return join(';', sort map {string($_, $data_type)} @$_)
+	    if UNIVERSAL::isa($_, 'ARRAY');
+
 	return $_
 	    unless _reftype($_);
 
 	return $_->stringify
-	    if UNIVERSAL::can($_,'stringify');
+	    if (Scalar::Util::blessed($_) && $_->can('stringify'));
+
+	if ($data_type) {
+	    my ($type, $is_array, $is_struct) =parse_type($data_type);
+	    return $type->stringify($_)
+		if ($is_struct && $type->can('stringify'));
+	}
 
 	return YAML::Dump($_);
     }
