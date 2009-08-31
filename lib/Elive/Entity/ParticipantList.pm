@@ -12,6 +12,8 @@ use Elive::Entity::Participant;
 use Elive::Util;
 use Elive::Array::Participants;
 
+use Scalar::Util;
+
 __PACKAGE__->entity_name('ParticipantList');
 
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
@@ -19,6 +21,10 @@ __PACKAGE__->primary_key('meetingId');
 
 has 'participants' => (is => 'rw', isa => 'ArrayRef[Elive::Entity::Participant]|Elive::Array::Participants',
     coerce => 1);
+# NOTE: thawed data may be returned as the 'participants' property.
+# but for frozen data the parameter name is 'users'. Also
+
+__PACKAGE__->_alias(users => 'participants', freeze => 1);
 
 coerce 'ArrayRef[Elive::Entity::Participant]' => from 'ArrayRef[HashRef]'
           => via {
@@ -103,35 +109,35 @@ sub _freeze {
 
     my $frozen = $class->SUPER::_freeze($data, %opt);
 
-    if (my $participants = delete $frozen->{participants}) {
+    if (my $users = $frozen->{users}) {
 	#
-	# NOTE: thawed data is returned as the 'participants' property.
-	# but for frozen data the parameter name is 'users'. Also
-	# setter methods expect a stringified digest in the form
-	#  userid=roleid[;userid=roleid]
+	# Need to flatten our users struct.
 	#
-	my $reftype = Elive::Util::_reftype($participants);
+	# Setter methods expect a stringified digest in the form:
+	# userid=roleid[;userid=roleid]
+	#
+	my $reftype = Elive::Util::_reftype($users);
 
 	if ($reftype) {
-	    die "expected participants to be an ARRAY, found $reftype"
+	    die "expected users to be an ARRAY, found $reftype"
 		unless ($reftype eq 'ARRAY');
 	}
 	else {
 	    #
 	    # participant list passed as a string.
 	    #
-	    $_ = [split(';')] for ($participants);
+	    $_ = [split(';')] for ($users);
 	}
 
-	my @users = map {
+	my @users_stringified = map {
 	    my $p = ref $_
 		? $_
 		: Elive::Entity::Participant->_parse($_);
 
 	    Elive::Entity::Participant->stringify($p);
-	} @$participants;
+	} @$users;
 	
-	$frozen->{users} = join(';', @users);
+	$frozen->{users} = join(';', @users_stringified);
     }
 
     return $frozen;
@@ -139,44 +145,9 @@ sub _freeze {
 
 =head2 insert
 
-    my $participant_list = Elive::Entity::ParticipantList->insert({
-	meetingId => $meeting_id,
-	participants => '111111=2;33333'
-	});
-
-Note that if you empty the participant list, C<reset> will be called.
-
 =cut
 
-sub insert {
-    my $class = shift;
-    my $data = shift;
-    my %opt = @_;
-
-    my $participants = $data->{participants};
-
-    #
-    # have a peak at the participantList, if it's empty,
-    # divert the call to the resetParticipantList adapter.
-    #
-
-    if ((!defined $participants)
-	|| (Elive::Util::_reftype($participants) eq 'ARRAY' && !@$participants)
-	|| $participants eq '') {
-
-	my $self
-	    = Elive::Entity::ParticipantList->retrieve([$data->{meetingId}],
-						       reuse => 1);
-
-	goto sub {$self->reset(%opt)};
-    }
-
-    my $adapter = $class->check_adapter('setParticipantList');
-
-    $class->SUPER::insert($data,
-			  adapter => $adapter,
-			  %opt);
-}
+sub insert {shift->_not_available}
 
 =head2 update
 
@@ -193,12 +164,19 @@ Note that if you empty the participant list, C<reset> will be called.
 
 sub update {
     my $self = shift;
-    my $data = shift;
+    my $update_data = shift;
     my %opt = @_;
 
-    my $participants = $data->{participants};
-    $participants = $self->participants
-	unless defined $participants;
+    if ($update_data) {
+
+	die 'usage: $obj->update( \%data )'
+	    unless (Elive::Util::_reftype($update_data) eq 'HASH');
+
+	$self->set( %$update_data)
+	    if (keys %$update_data);
+    }
+
+    my $participants = $self->participants;
 
     if ((!defined $participants)
 	|| (Elive::Util::_reftype($participants) eq 'ARRAY' && !@$participants)
@@ -213,9 +191,20 @@ sub update {
 
     my $adapter = $opt{adapter} || $self->check_adapter('setParticipantList');
 
-    $self->SUPER::update($data,
-			  adapter => $adapter,
-			  %opt);
+    if ($self->is_changed) {
+	$self->SUPER::update(undef,
+			     adapter => $adapter,
+			     %opt);
+    }
+    elsif ($self->_is_lazy) {
+	#
+	# input participants list may have been lazily populated. 
+	# Reread from database to fully stantiate objects.
+	#
+	my $class = ref($self);
+	$class->retrieve([$self->id]);
+	$self;
+    }
 }
 
 =head2 reset 
@@ -249,10 +238,33 @@ sub reset {
     my %updates
 	= (participants => [{user => $facilitator_id, role => 2}]);
 
-    $self->SUPER::update(\%updates,
-			 adapter => 'resetParticipantList',
-			 %opt,
+    $self->update(\%updates,
+		  adapter => 'resetParticipantList',
+		  %opt,
 	);
+}
+
+#
+# &_is_lazy
+# require a round trip to stantiate objects and users and roles
+# from elm.
+#
+
+sub _is_lazy {
+    my $self = shift;
+
+    my @changed = $self->SUPER::is_changed(@_);
+    unless (@changed) {
+
+	my $participants = $self->participants;
+	@changed = ('participants')
+	    if ($participants
+		&& grep {!(Scalar::Util::blessed($_)
+			   && Scalar::Util::blessed($_->{user})
+			   && Scalar::Util::blessed($_->{role}))} @$participants);
+    }
+
+    return @changed;
 }
 
 sub _readback {
@@ -262,14 +274,18 @@ sub _readback {
     my $connection = shift;
 
     #
-    # sometimes get back an empty response from setParticantList
-    # if this happens we'll have to handle it ourselves.
+    # sometimes get back an empty response from setParticipantList,
+    # however, the data hash being saved. Seems to be a problem in
+    # elm circa 9.0.
+    #
+    # If this happens, retrieve the data that we just saved and
+    # complete the readback check.
     #
     my $result = $som->result;
     return $class->SUPER::_readback($som, $updates, @_)
 	if Elive::Util::_reftype($result);
     #
-    # Ok, we need to handle our own readback.
+    # Ok, we need to handle our own error checking and readback.
     #
     $class->_check_for_errors($som);
 
