@@ -97,6 +97,18 @@ SKIP: {
 
     ok($preloads[2]->mimeType eq 'video/mpeg','expected value for mimeType (set)');
 
+    $preloads[3] = Elive::Entity::Preload->upload(
+    {
+	type => 'gunk',
+	name => 'gunk',
+	ownerId => Elive->login->userId,
+	mimeType => 'video/mpeg',
+	data => $data[1],
+    },
+    );
+
+    ok($preloads[3]->mimeType eq 'video/mpeg','expected value for mimeType (set)');
+
     my $check;
 
     lives_ok(sub {$check = $meeting->check_preload($preloads[0])},

@@ -169,6 +169,7 @@ sub update {
 
 	$self->set( %$update_data )
 	    if (keys %$update_data);
+
     }
 
     my $participants = $self->participants;
