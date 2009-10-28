@@ -1,7 +1,7 @@
 #!perl -T
-
-use Test::More tests => 18;
+use Test::More tests => 17;
 use Test::Exception;
+use File::Spec;
 
 BEGIN {
     use_ok( 'Elive' );
@@ -18,21 +18,14 @@ BEGIN {
     use_ok( 'Elive::Entity::ServerDetails' );
     use_ok( 'Elive::Entity::ServerParameters' );
     use_ok( 'Elive::Entity::User' );
-    SKIP: {skip('todo Elive::Command', 1); use_ok( 'Elive::Command')};
 }
 
-foreach (qw/elive_query elive_lint_config elive_raise_meeting/) {
-    lives_ok(\&{$_.'::load'}, "script $_ compiles");
+foreach my $script (qw/elive_query elive_lint_config elive_raise_meeting/) {
+    my $script_path =  File::Spec->catfile('script', $script);
+    lives_ok(sub {
+	do "$script_path";
+	for ($@, $!) {die $_ if $_};
+    }, "script $script compiles");
 }
 
 diag( "Testing Elive $Elive::VERSION, Perl $], $^X" );
-
-package elive_query;
-sub load{do('script/elive_query'); for ($@, $!) {die $_ if $_}};
-
-package elive_lint_config;
-sub load{do('script/elive_lint_config'); for ($@, $!) {die $_ if $_}};
-
-package elive_raise_meeting;
-sub load{do('script/elive_raise_meeting'); for ($@, $!) {die $_ if $_}};
-
