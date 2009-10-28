@@ -1,7 +1,11 @@
 Revision history for Elive
 
+0.46    28th October
+        - Fixed 'get_attribute_map() has been deprecated' test failures
+          that were occurring with Mouse 0.40+.
+
 0.45    26th October
-        - Added tests & fixed error in elive_raise_meeting.
+        - Fixed syntax error in elive_raise_meeting.
 
 0.44    22nd October
         - Fixed a bug that was causing erroneous read-back errors on
