@@ -1,7 +1,6 @@
 #!perl -T
 use Test::More tests => 17;
 use Test::Exception;
-use File::Spec;
 
 BEGIN {
     use_ok( 'Elive' );
@@ -20,11 +19,12 @@ BEGIN {
     use_ok( 'Elive::Entity::User' );
 }
 
+use lib 'script';
+
 foreach my $script (qw/elive_query elive_lint_config elive_raise_meeting/) {
-    my $script_path =  File::Spec->catfile('script', $script);
     lives_ok(sub {
-	do "$script_path";
-	for ($@, $!) {die $_ if $_};
+        eval "require '$script';";
+        for ($@, $!) {die $_ if $_};
     }, "script $script compiles");
 }
 

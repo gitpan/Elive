@@ -1,5 +1,9 @@
 Revision history for Elive
 
+0.48    29th October
+        - Fix for t/00a-compile.t/; was failing to load scripts. Now
+          located via: use lib 'script'; ... require 'elive_query';
+
 0.47    29th October
         Some work on script packaging:
         - Each script is declared in its own namespace,
