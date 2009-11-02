@@ -1,8 +1,10 @@
 Revision history for Elive
 
+0.48_1  03rd November
+        - Rewrote t/00a-compile.t to use Test::Strict when available.
+
 0.48    29th October
-        - Fix for t/00a-compile.t/; was failing to load scripts. Now
-          located via: use lib 'script'; ... require 'elive_query';
+        - Fix for t/00a-compile.t; was failing to load scripts.
 
 0.47    29th October
         Some work on script packaging:
