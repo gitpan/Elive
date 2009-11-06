@@ -1,15 +1,20 @@
 Revision history for Elive
 
-0.48_1  03rd November
-        - Rewrote t/00a-compile.t to use Test::Strict when available.
+0.49    6th November
+        Changes to support Elluminate Live 9.6
+        - Ensure the SOAP request root is strictly formattted as:
+         <request xmlns:m="http://www.soapware.org">...</request>
+        - Altered Elive::check_for_errors() method to detect error
+          messages passed as additional return parameters.
+
+0.48_1  3rd November
+        - Replaced body of t/00a-compile.t with Test::Strict.
 
 0.48    29th October
         - Fix for t/00a-compile.t; was failing to load scripts.
 
 0.47    29th October
-        Some work on script packaging:
-        - Each script is declared in its own namespace,
-          'package Elive::script::elive_query', etc.
+        - Gave each script a namespace: 'Elive::script::elive_query', etc.
         - elive_query: Now explicitly loads each entity class:
           'use Elive::Entity::Group', etc.
 
