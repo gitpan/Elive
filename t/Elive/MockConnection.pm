@@ -87,7 +87,7 @@ sub call {
 
     my ($_op, $entity_name) = ($cmd =~ m{^(add|get|create|check|delete|update)(.*)$});
 
-    $entity_name = 'user' if $cmd eq 'changePassword';
+    $entity_name = 'User' if $cmd eq 'changePassword';
 
     if ($entity_name) {
 
@@ -199,17 +199,20 @@ sub call {
 
 		my $pkey = $params{$primary_key[0]};
 		my $data = $self->mockdb->{$entity_name}{ $pkey };
-		die "entity not found: $entity_name/$params{$pkey}"
+		die "entity not found: $entity_name/$pkey"
 		    unless $data;
 
-		my $result = t::Elive::MockSOM->make_result($entity_class, %$data);
 		delete $self->mockdb->{$entity_name}{ $pkey };
 
-		return $data;
+		my $result = t::Elive::MockSOM->make_result($entity_class, %$data);
+		return $result;
 	    }
 	    else {
 		die "unable to handle $crud mockup for $cmd";
 	    }
+	}
+	else {
+	    die "unknown entity: $entity_name";
 	}
     }
 
