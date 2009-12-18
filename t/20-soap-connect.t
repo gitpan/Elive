@@ -16,18 +16,19 @@ my $class = 'Elive::Entity::Preload' ;
 
 SKIP: {
 
-    my %result = t::Elive->auth();
+    my %result = t::Elive->test_connection();
     my $auth = $result{auth};
 
     skip ($result{reason} || 'unable to find test connection',
 	10)
 	unless $auth && @$auth;
 
+    my $connection_class = $result{class};
     diag ("connecting: user=$auth->[1], url=$auth->[0]");
 
-    Elive->connect(@$auth);
-
-    ok(my $connection = Elive->connection, 'got connection');
+    my $connection = $connection_class->connect(@$auth);
+    Elive->connection($connection);
+    ok($connection, 'got connection');
     isa_ok($connection, 'Elive::Connection','connection')
 	or exit(1);
 
@@ -35,7 +36,7 @@ SKIP: {
 
     ok ($login = Elive->login, 'got login');
     isa_ok($login, 'Elive::Entity::User','login');
-    # case insenstive comparision
+    # case insensitive comparision
     ok(uc($login->loginName) eq uc($auth->[1]), 'username matches login');
 
     my $server_details;

@@ -140,7 +140,7 @@ sub insert {
 
 sub update {
     my $self = shift;
-    my $data = shift;
+    my $update_data = shift;
     my %opt = @_;
 
     my %params = (seats => 'Int',
@@ -151,11 +151,11 @@ sub update {
 	#
 	# these are parameters, not properties
 	#
-	$opt{param}{$_} = Elive::Util::_freeze(delete $data->{$_}, $type)
-	    if exists $data->{$_}
+	$opt{param}{$_} = Elive::Util::_freeze(delete $update_data->{$_}, $type)
+	    if exists $update_data->{$_}
     }
 
-    $self->SUPER::update($data, %opt);
+    $self->SUPER::update($update_data, %opt);
 }
 
 =head2 delete
@@ -237,7 +237,7 @@ sub list_user_meetings_by_date {
     my $meeting = Elive::Entity::Meeting->retrieve($meeting_id);
     $meeting->add_preload($preload_id);
 
-Associate a preload with a meeting
+Associates an existing preload with a meeting.
 
 =head3 See also
 
@@ -378,7 +378,7 @@ sub _thaw {
 
     if ($data->{Adapter}) {
 	#
-	# meeting giving us unexpected Adapter property. Ignore it
+	# meeting result can include a superious Adapter property. Ignore it
 	#
 
 	if ($class->debug) {
@@ -401,9 +401,6 @@ Disassociate a preload from a meeting.
 
 Note that the preload object is not actually deleted, just disassociated
 from the meeting and will continue to exist as a resource on the server.
-
-You don't need to call this method prior to deleting the preload. The
-deletion will succeed and the preload is disassociated from all meetings.
 
 =cut
 
