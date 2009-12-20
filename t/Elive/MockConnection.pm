@@ -171,24 +171,31 @@ sub call {
 		    #
 		    if ($user) {
 			my ($_data) = grep {$_->{loginName} eq $user} values %{  $self->mockdb->{$entity_name} || {} };
-			die "user $user not found"
-			    unless $_data;
-			$pkey = $_data->{userId};
-			
+			if ($_data) {
+			    $pkey = $_data->{userId}
+			}
+			else {
+			    $pkey = '';
+			}
 		    }
 		    else {
 			die "attempt to fetch user without loginName or userId"
 		    }
 		}
-		
-		die "get without primary key: $primary_key[0]"
-		    unless $pkey;
+		else {
+		    die "get without primary key: $primary_key[0]"
+			unless $pkey;
+		}
 
 		$data = $self->mockdb->{$entity_name}{ $pkey };
 
-		die "entity not found: $entity_name $primary_key[0]=$pkey"
-		    unless $data;
-		return  t::Elive::MockSOM->make_result($entity_class, %$data);
+		#
+		# user passwords are not returned
+		#
+
+		return $data
+		    ? t::Elive::MockSOM->make_result($entity_class, %$data)
+		    : t::Elive::MockSOM->not_found();
 	    }
 	    elsif ($crud eq 'd') {
 
