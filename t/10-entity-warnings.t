@@ -1,20 +1,21 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 17;
+use Test::More tests => 11;
 use Test::Warn;
 
-BEGIN {
-    use_ok( 'Elive' );
-    use_ok( 'Elive::Connection' );
-    use_ok( 'Elive::Entity' );
-    use_ok( 'Elive::Entity::User' );
-    use_ok( 'Elive::Entity::Meeting' );
-    use_ok( 'Elive::Entity::Preload' );
-}
+use Elive;
+use Elive::Connection;
+use Elive::Entity;
+use Elive::Entity::User;
+use Elive::Entity::Meeting;
+use Elive::Entity::Preload;
+use Elive::Entity::Recording;
 
 Elive->connection(Elive::Connection->connect('http://test.org'));
 
-warnings_like (\&meeting_with_lowres_dates,
+my $meeting;
+
+warnings_like (sub {$meeting = meeting_with_lowres_dates()},
 	      qr{doesn't look like a hi-res date},
 	      'low-res dates gives warning'
     );
