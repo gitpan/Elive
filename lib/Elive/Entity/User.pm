@@ -153,7 +153,7 @@ Update an Elluminate user. Everything can be changed, other than userId.
 This includes the loginName. However loginNames must all remain unique.
 
 As a safeguard, you'll need to pass C<force =E<gt> 1> to update:
-    (a) users with a Role Id of 0, i.e. system administrator accounts
+    (a) users with a Role Id of 0, i.e. system administrator accounts, or
     (b) the login user
 
 =cut
@@ -224,7 +224,7 @@ sub change_password {
 
     $user_obj->delete([force => 1]);
 
-Delete user objects. As a safeguard, you need to pass C<force => 1> to delete
+Delete user objects. As a safeguard, you need to pass C<force =E<gt> 1> to delete
 system administrator accounts, or the login user.
 
 =cut

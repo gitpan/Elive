@@ -17,7 +17,7 @@ use Carp;
 $SIG{__DIE__} = \&Carp::confess;
 
 #
-# restrict our user tests to the mock database. Live updates
+# restrict our user tests to mock connections. Live updates
 # are just to dangerous. There is also the possibility that the
 # live site is running LDAP, in which case both user and group access
 # become read only.
@@ -72,7 +72,7 @@ my @expected_members = sort map {$_->userId} @users;
 my @actual_members = sort @{$group->members};
 is_deeply(\@actual_members, \@expected_members, 'members after insert');
 
-## todo: implement group updates
+## todo: implement mock group updates
 ##my @expected_members_1 = ($expected_members[0], $expected_members[2]);
 
 ##$group->members(\@expected_members_1);
