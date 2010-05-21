@@ -4,8 +4,7 @@ use warnings; use strict;
 use Mouse;
 use Mouse::Util::TypeConstraints;
 
-use Elive::Entity;
-use base qw{ Elive::Entity };
+extends 'Elive::Entity';
 
 use Elive::Util;
 
@@ -110,9 +109,9 @@ sub upload {
 
     my $self = $class->insert($insert_data, %opt);
 
-    if ($length) {
+    if ($length && $binary_data) {
 
-	my $adapter = Elive->check_adapter('streamPreload');
+	my $adapter = $self->check_adapter('streamPreload');
 
 	my $connection = $self->connection
 	    or die "not connected";
@@ -151,7 +150,7 @@ sub download {
     die "unable to get a preload_id"
 	unless $preload_id;
 
-    my $adapter = Elive->check_adapter('getPreloadStream');
+    my $adapter = $self->check_adapter('getPreloadStream');
 
     my $connection = $self->connection
 	or die "not connected";
@@ -291,7 +290,7 @@ sub _guess_mimetype {
 =head1 BUGS AND LIMITATIONS
 
 Under Elluminate 9.6.0 and LDAP, you may need to abritrarily add a 'DomN:'
-prefix to the owner ID.
+prefix to the owner ID, when creating or updating a meeting.
 
     $preload->ownerId('Dom1:freddy');
 

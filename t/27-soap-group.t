@@ -14,7 +14,6 @@ my $class = 'Elive::Entity::Group' ;
 use_ok($class);
 
 use Carp;
-$SIG{__DIE__} = \&Carp::confess;
 
 #
 # restrict our user tests to mock connections. Live updates

@@ -1,5 +1,5 @@
 ---
-abstract: 'Elluminate Live (c) client library'
+abstract: 'Elluminate Live (c) SDK bindings'
 author:
   - 'David Warring <david.warring@gmail.com>'
 build_requires:
@@ -49,4 +49,5 @@ requires:
   perl: 5.005
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.65
+  repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
+version: 0.66

@@ -4,8 +4,7 @@ use warnings; use strict;
 use Mouse;
 use Mouse::Util::TypeConstraints;
 
-use Elive::Struct;
-use base qw{Elive::Struct};
+extends 'Elive::Struct';
 
 use Scalar::Util;
 
@@ -23,6 +22,10 @@ has 'user' => (is => 'rw', isa => 'Elive::Entity::User|Str',
 has 'role' => (is => 'rw', isa => 'Elive::Entity::Role|Str',
 	       documentation => 'Role of the user within this meeting',
 	       coerce => 1,
+    );
+
+has 'type' => (is => 'rw', isa => 'Int',
+	       documentation => 'Not sure what this is',
     );
 
 #

@@ -3,8 +3,7 @@ use warnings; use strict;
 use Mouse;
 use Mouse::Util::TypeConstraints;
 
-use Elive::Struct;
-use base qw{Elive::Struct};
+extends 'Elive::Struct';
 
 use YAML;
 use Scalar::Util qw{weaken};
@@ -115,11 +114,9 @@ sub construct {
 	unless (Elive::Util::_reftype($data) eq 'HASH');
 
     #
-    # don't seem to have any way of recursively passing options
-    # through mouse/moose contructors.
-    #
-    # uumm hang on ..., I think that the Moose/Mouse BUILD method can
-    # sort this?  Todo: remove %Elive::_construct_opts global variable
+    # todo: Most if not all of this stuff can be handled via the
+    # moose/mouse BUILD method
+    # sort this?  remove %Elive::_construct_opts global variable
     #
     local (%Elive::_construct_opts) = %opt;
 
@@ -130,13 +127,11 @@ sub construct {
     @known_properties{$class->properties} = undef;
 
     foreach (keys %$data) {
-	warn "$class: unknown property $_"
-	    unless exists $known_properties{$_};
     }
 
     warn YAML::Dump({construct => $data})
 	if (Elive->debug > 1);
-    
+
     my $self = Scalar::Util::blessed($data)
 	? $data
 	: $class->new($data);
@@ -675,7 +670,6 @@ sub insert {
     my $som = $connection->call($adapter,
 				%$db_data,
 				%{$opt{param} || {}},
-##				loginPassword => $login_password,
 	);
 
     my @rows = $class->_readback($som, $insert_data, $connection);
