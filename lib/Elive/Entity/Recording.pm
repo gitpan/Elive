@@ -33,7 +33,7 @@ has 'open' => (is => 'rw', isa => 'Bool',
 has 'roomName' => (is => 'rw', isa => 'Str',
 		   documentation => 'name of the meeting that created this recording');
 has 'size' => (is => 'rw', isa => 'Int',
-	       documentation => 'download size (bytes');
+	       documentation => 'recording file size (bytes');
 has 'version' => (is => 'rw', isa => 'Str',
 		  documentation => 'version of Elluminate Live! that created this recording');
 
@@ -122,6 +122,73 @@ sub download {
 	if $results->[0];
 
     return undef;
+}
+
+=head2 upload
+
+    # get the binary data from somewhere
+    open (my $rec_fh, '<', $recording_file)
+        or die "unable to open $recording_file: $!";
+
+    my $data = join($rec_fh, <REC>);
+    die "no recording data: $recording_file"
+        unless ($data && length($data));
+
+    # somehow generate a unique key for the recordingId.
+    
+    use Time::HiRes();
+    my ($seconds, $microseconds) = Time::HiRes::gettimeofday();
+    my $recordingId = sprintf("%d%d", $seconds, $microseconds/1000);
+
+    # associate this recording with an existing meeting (optional)
+    my $meetingId = '1234567890123';
+
+    my $recording = Elive::Entity:Recording->upload(
+             {
+                    meetingId => $recordingId.'_'.$meetingId,
+                    recordingId => $meetingId,
+                    roomName => 'Meeting of the Smiths',
+                    facilitator =>  Elive->login,
+                    version => Elive->server_details->version,
+                    data => $binary_data,
+                    size => length($binary_data),
+	     },
+         );
+
+Upload data from a client and create a recording.
+
+=cut
+
+sub upload {
+    my $class = shift;
+    my $insert_data = shift;
+    my %opt = @_;
+
+    my $binary_data = delete $insert_data->{data};
+
+    my $self = $class->insert($insert_data, %opt);
+
+    my $size = $self->size;
+
+    if ($size && $binary_data) {
+
+	my $adapter = $class->check_adapter('streamRecording');
+
+	my $connection = $self->connection
+	    or die "not connected";
+
+	my $som = $connection->call($adapter,
+				    recordingId => $self->recordingId,
+				    length => $size,
+				    stream => (SOAP::Data
+					       ->type('hexBinary')
+					       ->value($binary_data)),
+	    );
+
+	$self->_check_for_errors($som);
+    }
+
+    return $self;
 }
 
 =head2 web_url
@@ -260,6 +327,7 @@ sub buildJNLP {
 #		    facilitator => 'jbloggs',
 #		    creationDate => time().'000',
 #                   fileName => $path_on_server,
+#                   version => Elive->server_details->version,
 #                   open => 0,
 #	     },
 #         );
@@ -285,7 +353,7 @@ sub _tba_import_from_server {
     die "missing version parameter"
 	unless $version;
 
-    my $connection = $opt{connection} || $class->connnection
+    my $connection = $opt{connection} || $class->connection
 	or die "not connected";
 
     my $adapter = $class->check_adapter('importRecording');
@@ -315,62 +383,4 @@ sub _tba_import_from_server {
     return $self;
 }
 
-#=head2 upload
-#
-#    my $recording = Elive::Entity:Recording->upload(
-#             {
-#                    meetingId => '1234567890123',
-#                    meetingName => 'Meeting of the Smiths',
-#		    facilitator => 'jbloggs',
-#		    creationDate => time().'000',
-#                    data => $binary_data,
-#	     },
-#         );
-#
-#Upload data from a client and create a recording.
-#
-#=cut
-
-sub _tba_upload {
-    my $class = shift;
-    my $insert_data = shift;
-    my %opt = @_;
-
-    my $binary_data = delete $insert_data->{data};
-
-    my $length = (defined($binary_data) && length($binary_data)) || 0;
-
-    $opt{param}{length} = $length
-        if $length;
-
-    my $self = $class->insert($insert_data, %opt);
-
-    if ($length && $binary_data) {
-
-	my $adapter = $class->check_adapter('streamRecording');
-
-	my $connection = $self->connection
-	    or die "not connected";
-
-	my $som = $connection->call($adapter,
-				    recordingId => $self->recordingId,
-				    length => $length,
-				    stream => (SOAP::Data
-					       ->type('hexBinary')
-					       ->value($binary_data)),
-	    );
-
-	$self->_check_for_errors($som);
-    }
-
-    return $self;
-}
-
-
-=head1 BUGS AND LIMITATIONS
-
-The following methods are not yet available: C<import_from_server>, C<upload>.
-See also: Elive::Entity::Preload, which has these methods implemented.
-
-=cut
 1;
