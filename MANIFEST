@@ -23,6 +23,7 @@ lib/Elive/Entity/Participant.pm
 lib/Elive/Entity/ParticipantList.pm
 lib/Elive/Entity/Preload.pm
 lib/Elive/Entity/Recording.pm
+lib/Elive/Entity/Report.pm
 lib/Elive/Entity/Role.pm
 lib/Elive/Entity/ServerDetails.pm
 lib/Elive/Entity/ServerParameters.pm
@@ -59,6 +60,7 @@ t/24-soap-preload.t
 t/25-soap-recording.t
 t/26-soap-user.t
 t/27-soap-group.t
+t/28-soap-report.t
 t/29-soap-multi-connect.t
 t/90-pod.t
 t/91-pod-coverage.t

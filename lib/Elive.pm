@@ -7,11 +7,11 @@ Elive - Elluminate Live! (c) SDK bindings
 
 =head1 VERSION
 
-Version 0.67
+Version 0.68
 
 =cut
 
-our $VERSION = '0.67';
+our $VERSION = '0.68';
 
 use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
@@ -232,56 +232,79 @@ BEGIN {
     # classify adaptors as create, read, update or delete
     #
     %KnownAdapters = (
+
 	addGroupMember => 'c',
 	addMeetingPreload => 'c',
+	addReport => 'c',
+
 	attendanceNotification => 'r',
+
 	changePassword => 'u',
+
 	buildMeetingJNLP => 'r',
 	buildRecordingJNLP => 'r',
+        buildReport => 'r',
+
 	checkMeetingPreload => 'r',
+
 	createGroup => 'c',
 	createMeeting => 'c',
 	createPreload => 'c',
 	createRecording => 'c',
 	createUser => 'c',
+
 	deleteGroup => 'd',
 	deleteMeeting => 'd',
 	deleteMeetingPreload => 'd',
 	deleteParticipant => 'd',
 	deleteRecording => 'd',
+	deleteReport => 'd',
 	deletePreload => 'd',
 	deleteUser => 'd',
+
 	getGroup => 'r',
 	getMeeting => 'r',
 	getMeetingParameters => 'r',
 	getPreload => 'r',
 	getPreloadStream => 'r',
 	getRecording => 'r',
+	getReport => 'r',
 	getRecordingStream => 'r',
+        getReport          => 'r',
 	getServerDetails => 'r',
 	getServerParameters => 'r',
 	getUser => 'r',
+
 	importPreload => 'c',
 	importRecording => 'c',
+
 	isParticipant => 'r',
+
 	listGroups => 'r',
 	listMeetingPreloads => 'r',
 	listMeetings => 'r',
 	listParticipants => 'r',
 	listPreloads => 'r',
 	listRecordings => 'r',
+        listReports => 'r',
 	listUserMeetingsByDate => 'r',
 	listUsers => 'r',
+
 	resetGroup => 'u',
 	resetParticipantList => 'u',
+
 	setParticipantList => 'u',
+
 	streamPreload => 'u',
 	streamRecording => 'u',
+
 	updateMeeting => 'u',
 	updateMeetingParameters => 'u',
 	updateRecording => 'u',
+	updateReport => 'u',
 	updateServerParameters => 'u',
 	updateUser => 'u',
+
 	);
 }
 
@@ -305,7 +328,7 @@ sub check_adapter {
 
     my %known_adapters = $class->known_adapters;
 
-    die "Uknown adapter: $adapter"
+    die "Unknown adapter: $adapter"
 	unless exists $known_adapters{$adapter};
 
     if ($crud) {
