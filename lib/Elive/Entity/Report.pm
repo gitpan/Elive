@@ -46,19 +46,19 @@ Elive::Entity::Report - Elluminate Report entity instance class
 This is the entity class for server side reports. These are visible
 on the Elluminate server under the 'Reports' tab.
 
-Please note that the C<list> method does not return the body of the
-report. The report object needs to be refetched via the C<retrieve> method.
+Please note that the C<list> method (C<listReports> adapter) does not return the body
+of the report. The report object needs to be refetched via the C<retrieve> method.
 
 For example, to export all reports on a connected server:
 
     my $reports = Elive::Entity::Report->list(
     my @report_ids = map {$_->reportId} @$reports;
-    #
-    # listed objects don't have the report body, cull and refetch them.
-    #
-    $reports = undef;
 
     foreach my $reportId (@report_ids) {
+
+	#
+	# listed objects don't have the report body, refetch them.
+	#
 
         my $rpt = Elive::Entity::Report->retrieve([$reportId]);
 
@@ -66,10 +66,10 @@ For example, to export all reports on a connected server:
 	$name =~ s/[^\w]//g;
 	my $export_file = "/tmp/report_${reportId}_${name}.xml";
 
-	open (XML, '>', $export_file)
+	open (my $dump_fh, '>', $export_file)
 	    or die "unable to open $export_file: $!";
-	print XML $rpt->xml;
-	close (XML);
+	print $dump_fh $rpt->xml;
+	close ($dump_fh);
 
     }
 
@@ -86,16 +86,16 @@ Updates an existing report.
 =cut
 
 sub update {
-    my $self = shift;
-    my $update_data = shift;
+    my ($self, $update_data, @args) = @_;
 
-    my %changed;
     #
     # always need to supply these fields to the update adapter,
-    # wether or not they've changed.
+    # whether or not they've actually changed.
     #
+    my %changed;
     @changed{$self->is_changed, 'name','description','xml','ownerId'} = undef;
-    $self->SUPER::update(undef, @_, changed => [sort keys %changed]);
+
+    return $self->SUPER::update(undef, @args, changed => [keys %changed]);
 }
 
 1;

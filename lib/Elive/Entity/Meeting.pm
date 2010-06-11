@@ -104,15 +104,11 @@ C<recurrenceDays> parameters.
 =cut
 
 sub insert {
-    my $class = shift;
-    my $data = shift;
+    my ($class, $data, %opt) = @_;
 
     die "usage: $class->insert(\\%data, %opts)"
-	unless (Elive::Util::_reftype($data) eq 'HASH'
-		&& @_ % 2 == 0);
+	unless (Elive::Util::_reftype($data) eq 'HASH');
  
-    my %opt = @_;
-
     my %params = (seats => 'Int',
 		  recurrenceCount => 'Int',
 		  recurrenceDays => 'Int',
@@ -127,7 +123,7 @@ sub insert {
 	    if exists $data->{$_}
     }
 
-    $class->SUPER::insert($data, %opt);
+    return $class->SUPER::insert($data, %opt);
 }
 
 =head2 update
@@ -146,9 +142,7 @@ sub insert {
 =cut
 
 sub update {
-    my $self = shift;
-    my $update_data = shift;
-    my %opt = @_;
+    my ($self, $update_data, %opt) = @_;
 
     my %params = (seats => 'Int',
 		  timeZone => 'Str');
@@ -162,7 +156,7 @@ sub update {
 	    if exists $update_data->{$_}
     }
 
-    $self->SUPER::update($update_data, %opt);
+    return $self->SUPER::update($update_data, %opt);
 }
 
 =head2 delete
@@ -172,9 +166,27 @@ sub update {
 
 Delete the meeting.
 
-Note: With Elluminate 9.5 onwards, deleting a meetings simply sets the
-I<deleted> property to true. Meetings, Meeting Parameters and Server
-Parameters remain accessable via the SOAP inteface.
+Note:
+
+=over 4
+
+=item Meeting recordings are not deleted.
+
+If you also want to remove the associated recordings, you'll need to delete
+them yourself, E.g.:
+
+    my $recordings = $meeting->list_recordings;
+
+    foreach my $recording (@$recordings) {
+        $recording->delete;
+    }
+
+    $meeting->delete;
+
+=item With Elluminate 9.5 onwards simply sets the I<deleted> property to true.
+
+Meetings, Meeting Parameters, Server Parameters and recordings remain
+accessable via the SOAP inteface.
 
 You'll need to remember to check for deleted meetings:
 
@@ -184,6 +196,8 @@ You'll need to remember to check for deleted meetings:
 or filter them out when listing meetings:
 
     my $live_meetings =  Elive::Entity::Meeting->list(filter => 'deleted = false');
+
+=back
 
 =cut
 
@@ -218,9 +232,7 @@ Implements the ListUserMeetingsByDateCommand SDK method.
 =cut
 
 sub list_user_meetings_by_date {
-    my $class = shift;
-    my $params = shift;
-    my %opt = @_;
+    my ($class, $params, %opt) = @_;
 
     die 'usage: $class->user_meetings_by_date([$user, $start_date, $end_date])'
 	unless (Elive::Util::_reftype($params) eq 'ARRAY'
@@ -254,9 +266,7 @@ Elive::Entity::Preload
 =cut
 
 sub add_preload {
-    my $self = shift;
-    my $preload_id = shift;
-    my %opt = @_;
+    my ($self, $preload_id, %opt) = @_;
 
     die 'usage: $meeting_obj->add_preload($preload || $preload_id)'
 	unless $preload_id;
@@ -277,7 +287,7 @@ sub add_preload {
 	       preloadId => Elive::Util::_freeze($preload_id, 'Int'),
 	);
 
-    $self->_check_for_errors($som);
+    return $self->_check_for_errors($som);
 }
 
 =head2 check_preload
@@ -289,9 +299,7 @@ Checks that the preload is associated with this meeting.
 =cut
 
 sub check_preload {
-    my $self = shift;
-    my $preload_id = shift;
-    my %opt = @_;
+    my ($self, $preload_id, %opt) = @_;
 
     die 'usage: $meeting_obj->check_preload($preload || $preload_id)'
 	unless $preload_id;
@@ -328,9 +336,7 @@ Checks that the user is a meeting participant.
 =cut
 
 sub is_participant {
-    my $self = shift;
-    my $user = shift;
-    my %opt = @_;
+    my ($self, $user, %opt) = @_;
 
     die 'usage: $meeting_obj->is_preload($user || $user_id)'
 	unless $user;
@@ -359,9 +365,8 @@ sub is_participant {
 }
 
 sub _readback_check {
-    my $class = shift;
-    my %updates = %{shift()};
-    my $rows = shift;
+    my ($class, $updates_href, $rows, @args) = @_;
+    my %updates = %$updates_href;
 
     #
     # password not included in readback record - skip it
@@ -375,14 +380,13 @@ sub _readback_check {
     #
     $rows = [$rows->[0]] if @$rows > 1;
 
-    $class->SUPER::_readback_check(\%updates, $rows, @_);
+    return $class->SUPER::_readback_check(\%updates, $rows, @args);
 }
 
 sub _thaw {
-    my $class = shift;
-    my $db_data = shift;
+    my ($class, $db_data, @args) = @_;
 
-    my $data = $class->SUPER::_thaw($db_data, @_);
+    my $data = $class->SUPER::_thaw($db_data, @args);
 
     if ($data->{Adapter}) {
 	#
@@ -411,9 +415,7 @@ Disassociate a preload from a meeting.
 =cut
 
 sub remove_preload {
-    my $self = shift;
-    my $preload_id = shift;
-    my %opt = @_;
+    my ($self, $preload_id, %opt) = @_;
 
     my $meeting_id = $opt{meeting_id} || $self->meetingId;
 
@@ -433,7 +435,7 @@ sub remove_preload {
 				preloadId => Elive::Util::_freeze($preload_id, 'Int'),
 				);
 
-    $self->_check_for_errors($som);
+    return $self->_check_for_errors($som);
 }
     
 =head2 buildJNLP 
@@ -477,8 +479,7 @@ See also L<http://en.wikipedia.org/wiki/JNLP>.
 =cut
 
 sub buildJNLP {
-    my $self = shift;
-    my %opt = @_;
+    my ($self, %opt) = @_;
 
     my $connection = $self->connection
 	or die "not connected";
@@ -536,8 +537,7 @@ available as both class level and object level methods.
 =cut
 
 sub web_url {
-    my $self = shift;
-    my %opt = @_;
+    my ($self, %opt) = @_;
 
     my $meeting_id = $opt{meeting_id};
     my $connection = $self->connection || $opt{connection}
@@ -584,13 +584,13 @@ See also L<Elive::Entity::MeetingParameters>.
 =cut
 
 sub parameters {
-    my $self = shift;
+    my ($self, @args) = @_;
 
     return Elive::Entity::MeetingParameters
 	->retrieve([$self->meetingId],
 		   reuse => 1,
 		   connection => $self->connection,
-		   @_,
+		   @args,
 	);
 }
 
@@ -605,13 +605,13 @@ See also L<Elive::Entity::ServerParameters>.
 =cut
 
 sub server_parameters {
-    my $self = shift;
+    my ($self, @args) = @_;
 
     return Elive::Entity::ServerParameters
 	->retrieve([$self->meetingId],
 		   reuse => 1,
 		   connection => $self->connection,
-		   @_,
+		   @args,
 	);
 }
 
@@ -626,13 +626,13 @@ See also L<Elive::Entity::ParticipantList>.
 =cut
 
 sub participant_list {
-    my $self = shift;
+    my ($self, @args) = @_;
 
     return Elive::Entity::ParticipantList
 	->retrieve([$self->meetingId],
 		   reuse => 1,
 		   connection => $self->connection,
-		   @_,
+		   @args,
 	);
 }
 
@@ -645,12 +645,12 @@ Lists all preloads associated with the meeting. See also L<Elive::Entity::Preloa
 =cut
 
 sub list_preloads {
-    my $self = shift;
+    my ($self, @args) = @_;
 
     return Elive::Entity::Preload
         ->list_meeting_preloads($self->meetingId,
 				connection => $self->connection,
-				@_);
+				@args);
 }
 
 =head2 list_recordings
@@ -663,12 +663,12 @@ L<Elive::Entity::Recording>.
 =cut
 
 sub list_recordings {
-    my $self = shift;
+    my ($self, @args) = shift;
 
     return Elive::Entity::Recording
 	->list(filter => 'meetingId = '.$self->meetingId,
 	       connection => $self->connection,
-	       @_);
+	       @args);
 }
     
 =head1 BUGS AND LIMITATIONS

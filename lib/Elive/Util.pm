@@ -3,11 +3,11 @@ use warnings; use strict;
 
 use Term::ReadKey;
 use Term::ReadLine;
+use IO::Interactive;
 use Scalar::Util;
 use Storable;
 require UNIVERSAL;
 use YAML;
-
 
 =head1 NAME
 
@@ -148,7 +148,7 @@ sub _thaw {
 #               used to clean up numbers for data storage or comparison
 
 sub _tidy_decimal {
-    my $i = $_[0];
+    my $i = shift;;
     #
     # well a number really. don't convert or sprintf etc
     # to avoid overflow. Just normalise it for potential
@@ -202,9 +202,9 @@ Prompt for user input
 =cut
 
 sub prompt {
+    my ($prompt,%opt) = @_;
 
-    chomp(my $prompt = shift || 'input:');
-    my %opt = @_;
+    chomp($prompt ||= 'input:');
 
     ReadMode $opt{password}? 2: 1; # Turn off controls keys
 
@@ -213,9 +213,10 @@ sub prompt {
 
     do {
 	die "giving up on input of $prompt" if ++$n > 100;
-	print $prompt if -t STDIN;
+	print $prompt if IO::Interactive::is_interactive();
 	$input = ReadLine(0);
-	return undef unless (defined $input);
+	return
+	    unless (defined $input);
 	chomp($input);
     } until (defined($input) && length($input));
 
@@ -312,8 +313,12 @@ sub string {
 	    return $type->stringify($_)
 		if ($is_struct && $type->can('stringify'));
 	}
-
-	return YAML::Dump($_);
     }
+
+    #
+    # Nothing else worked; dump it.
+    #
+    return YAML::Dump($obj);
 }
+
 1;

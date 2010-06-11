@@ -24,6 +24,8 @@ use Term::ReadLine;
 use Pod::Usage;
 use UNIVERSAL;
 
+use IO::Interactive;
+
 =head1 NAME
 
 elive_query
@@ -45,7 +47,7 @@ Simple read-only query shell for Elive.
 
 =head2 Entity Data Queries
 
-This example script lets you do simple queries, in a vaugely SQL like manner.
+This example script lets you do simple queries, in a vaguely SQL like manner.
 For example:
 
     % elive_query -user admin http://myvclass.com/mysite
@@ -96,8 +98,8 @@ sub main {
 
     our $elive_version = ${Elive::VERSION};
     our $entities = Elive::Entity->entities;
-    our $term = new Term::ReadLine 'elive shell';
-    our $is_tty = -t STDIN;
+    our $term = Term::ReadLine->new('elive shell');
+    our $is_tty = IO::Interactive::is_interactive();
 
     foreach (keys %$entities) {
 	#
@@ -289,6 +291,8 @@ sub main {
 
 	print STDERR "about to shutdown, live objects: @living\n";
     }
+
+    return 0;
 }
 
 ########################################################################
@@ -334,13 +338,12 @@ sub _show {
 	}
 
     }
+
+    return;
 }
 
 sub _select {
-
-    my $entity_class = shift;
-    my $props = shift;
-    my %opt = @_;
+    my ($entity_class, $props, %opt) = @_;
 
     my $filter = $opt{filter};
     my $hide_undef = $opt{hide_undef};
@@ -475,6 +478,8 @@ sub _select {
 	    print join('|', map{defined($_) ? $_ : '(undef)'} @cols)."\n"; 
 	}
     }
+
+    return;
 }
 
 sub _fetch_row_aref {
@@ -533,9 +538,7 @@ sub _getopt {
 }
 
 sub _connect {
-
-    my $url = shift;
-    my %options = @_;
+    my ($url,%options) = @_;
 
     my $username = $options{username};
     my $password = $options{password};
