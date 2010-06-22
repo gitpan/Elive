@@ -62,6 +62,10 @@ has 'size' => (is => 'rw', isa => 'Int', required => 1,
 has 'data' => (is => 'rw', isa => 'Str',
 	       documentation => 'The contents of the preload.');
 
+has 'isProtected' => (is => 'rw', isa => 'Bool');
+has 'isDataAvailable' => (is => 'rw', isa => 'Bool');
+
+
 =head1 METHODS
 
 =cut
@@ -84,28 +88,30 @@ MIME::Types.
 =cut
 
 sub upload {
-    my ($class, $insert_data, %opt) = @_;
+    my ($class, $insert_data_ref, %opt) = @_;
 
-    my $binary_data = delete $insert_data->{data};
+    my %insert_data = %{ $insert_data_ref };
 
-    my $length = length($binary_data) ||0;
+    my $binary_data = delete $insert_data{data};
+
+    my $length = delete $insert_data{length} || length($binary_data) ||0;
 
     $opt{param}{length} = $length
         if $length;
 
-    if ($insert_data->{name}) {
+    if ($insert_data{name}) {
 
 	$_ = File::Basename::basename($_)
-	    for $insert_data->{name};
+	    for $insert_data{name};
 
-	$insert_data->{mimeType} ||= $class->_guess_mimetype($insert_data->{name});
-	$insert_data->{type}
-	||= ($insert_data->{name} =~ m{\.wbd}i     ? 'whiteboard'
-	     : $insert_data->{name} =~ m{\.elpx?}i ? 'plan'
+	$insert_data{mimeType} ||= $class->_guess_mimetype($insert_data{name});
+	$insert_data{type}
+	||= ($insert_data{name} =~ m{\.wbd$}ix     ? 'whiteboard'
+	     : $insert_data{name} =~ m{\.elpx?$}ix ? 'plan'
 	     : 'media');
     }
 
-    my $self = $class->insert($insert_data, %opt);
+    my $self = $class->insert(\%insert_data, %opt);
 
     if ($length && $binary_data) {
 
@@ -191,16 +197,18 @@ sub import_from_server {
 
     $insert_data->{mimeType} ||= $class->_guess_mimetype($filename);
     $insert_data->{type} 
-	||= ($filename =~ m{\.wbd}i     ? 'whiteboard'
-	     : $filename =~ m{\.elpx?}i ? 'plan'
+	||= ($filename =~ m{\.wbd}ix     ? 'whiteboard'
+	     : $filename =~ m{\.elpx?}ix ? 'plan'
 	     : 'media');
 
     $insert_data->{name} ||= File::Basename::basename($filename);
 
     $opt{param}{fileName} = $filename;
 
+    my $adapter = $class->check_adapter('importPreload');
+
     return $class->insert($insert_data,
-			  adapter => 'importPreload',
+			  adapter => $adapter,
 			  %opt);
 }
 
@@ -218,17 +226,17 @@ sub list_meeting_preloads {
     die 'usage: $preload_obj->list_meeting_preloads($meeting)'
 	unless $meeting_id;
 
+    my $adapter = $self->check_adapter('listMeetingPreloads');
+
     return $self->_fetch({meetingId => $meeting_id},
-			 adapter => 'listMeetingPreloads',
+			 adapter => $adapter,
 			 %opt
 	);
 }
 
 sub _thaw {
     my ($class, $db_data, %opt) = @_;
-    #
-    # Primary key returned in a field named 'Key'. We require PreloadId
-    #
+
     my $db_thawed = $class->SUPER::_thaw($db_data, %opt);
 
     for (grep {defined} $db_thawed->{type}) {
@@ -237,7 +245,7 @@ sub _thaw {
 	#
 	$_ = lc($_);
 
-	unless (m{^media|whiteboard|plan$}) {
+	unless (m{^media|whiteboard|plan$}x) {
 	    warn "ignoring unknown media type: $_";
 	    delete $db_thawed->{type};
 	}
@@ -261,7 +269,7 @@ sub _guess_mimetype {
     my $mime_type;
     my $guess;
 
-    unless ($filename =~ m{\.elpx?}) { # plan
+    unless ($filename =~ m{\.elpx?}x) { # plan
 	$mime_type = $mime_types->mimeTypeOf($filename);
 
 	$guess = $mime_type->type
@@ -273,12 +281,35 @@ sub _guess_mimetype {
     return $guess;
 }
 
+sub _readback_check {
+    my ($class, $update_ref, $rows, @args) = @_;
+
+    #
+    # Elluminate 10.0 discards the file extension for whiteboard preloads;
+    # bypass check on 'name'.
+    #
+
+    my %updates = %{ $update_ref };
+    delete $updates{name};
+
+    return $class->SUPER::_readback_check(\%updates, $rows, @args, case_insensitive => 1);
+}
+
 =head1 BUGS AND LIMITATIONS
 
-Under Elluminate 9.6.0 and LDAP, you may need to abritrarily add a 'DomN:'
+=over 4
+
+=item -- Under Elluminate 9.6.0 and LDAP, you may need to abritrarily add a 'DomN:'
 prefix to the owner ID, when creating or updating a meeting.
 
     $preload->ownerId('Dom1:freddy');
+
+=item -- Elluminate 10.0 strips the file extension from the filename when
+whiteboard files are saved or uploaded (C<introduction.wbd> => C<introduction>).
+However, if the file lacks an extension to begin with, the request crashes with
+the confusing error message: C<"string index out of range: -1">.
+
+=back
 
 =cut
 

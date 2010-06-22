@@ -1,18 +1,17 @@
 #!perl
 use warnings; use strict;
-use Test::More tests => 12;
+use Test::More tests => 10;
 use Test::Exception;
 use version;
 
 use lib '.';
 use t::Elive;
 
-BEGIN {
-    use_ok( 'Elive' );
-    use_ok( 'Elive::Entity::Preload' );
-};
+use Elive;
+use Elive::Entity::User;
+use Elive::Entity::ServerDetails;
 
-my $class = 'Elive::Entity::Preload' ;
+our $t = Test::Builder->new;
 
 SKIP: {
 
@@ -20,7 +19,7 @@ SKIP: {
     my $auth = $result{auth};
 
     skip ($result{reason} || 'skipping live tests',
-	10)
+	9)
 	unless $auth && @$auth;
 
     my $connection_class = $result{class};
@@ -37,8 +36,10 @@ SKIP: {
     ok ($login = Elive->login, 'got login');
     isa_ok($login, 'Elive::Entity::User','login');
     # case insensitive comparision
-    ok(uc($login->loginName) eq uc($auth->[1]), 'username matches login');
+    my $login_name = $login->loginName;
+    ok(uc($login_name) eq uc($auth->[1]), 'username matches login');
 
+    my $login_refetch;
     my $server_details;
     my $server_version;
 
@@ -50,7 +51,7 @@ SKIP: {
     my $server_version_num = version->new($server_version)->numify;
     ok($server_version_num >= 9, "Elluminate Live! server is 9.0.0 or higher");
 
-    my $tested_version = '9.7.0';
+    my $tested_version = '10.0.0';
     my $tested_version_num = version->new($tested_version)->numify;
 
     if ($server_version_num > $tested_version_num) {

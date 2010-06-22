@@ -7,11 +7,11 @@ Elive - Elluminate Live! (c) SDK bindings
 
 =head1 VERSION
 
-Version 0.69
+Version 0.70
 
 =cut
 
-our $VERSION = '0.69';
+our $VERSION = '0.70';
 
 use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
@@ -24,6 +24,7 @@ The following (somewhat contrived) example sets up a meeting of selected
 participants:
 
     use Elive;
+    use Elive::Connection;
     use Elive::Entity::User;
     use Elive::Entity::Meeting;
 
@@ -112,9 +113,6 @@ sub connect {
     die "usage: ${class}->new(url, login_name[, pass])"
 	unless ($class && $url && $login_name);
 
-    eval "use Elive::Connection";
-    die $@ if $@;
-
     my $connection = Elive::Connection->connect(
 	$url,
 	$login_name,
@@ -189,7 +187,7 @@ do this prior to exiting your program.
 sub disconnect {
     my ($class, %opt) = @_;
 
-    if (my $connection = $opt{connection} || $class->connection) {
+    if (my $connection = $class->connection) {
 	$connection->disconnect;
 	$class->connection(undef);
     }
@@ -329,11 +327,11 @@ sub check_adapter {
     if ($crud) {
 	$crud = lc(substr($crud,0,1));
 	die $usage
-	    unless $crud =~ m{^[c|r|u|d]$};
+	    unless $crud =~ m{^[c|r|u|d]$}x;
 
 	my $adapter_type = $known_adapters{$adapter};
 	die "misconfigured adapter: $adapter"
-	    unless $adapter_type &&  $adapter_type  =~ m{^[c|r|u|d]$};
+	    unless $adapter_type &&  $adapter_type  =~ m{^[c|r|u|d]$}x;
 
 	die "adapter $adapter. Type mismatch. Expected $crud, found $adapter_type"
 	    unless ($adapter_type eq $crud);
@@ -390,16 +388,10 @@ sub has_metadata {
     return $Meta_Data_Accessor{ $accessor };
 }
 
-sub DESTROY {
+sub DEMOLISH {
     my $self = shift;
     delete  $Meta_Data{Scalar::Util::refaddr($self)};
     return;
-}
-
-{
-    no strict 'refs';
-
-    *{__PACKAGE__.'::DEMOLISH'} = \&DESTROY;
 }
 
 =head1 ERROR MESSAGES
@@ -485,7 +477,7 @@ elive_query is an example simple sql-like script. It is a basic program
 for listing and retrieving entities. It serves as a simple demonstration
 script, and can be used to confirm basic operation of Elive.
 
-It servers a secondary function of querying entity metadata. For example,
+It server a secondary function of querying entity metadata. For example,
 to show the user entity:
 
     $> elive_query
@@ -543,6 +535,8 @@ Perl Modules (included in the Elive distribution):
 =item Elive::Entity::Preload
 
 =item Elive::Entity::Recording
+
+=item Elive::Entity::Report
 
 =item Elive::Entity::ServerDetails
 
@@ -621,7 +615,7 @@ David Warring, C<< <david.warring at gmail.com> >>
 =item Elive is a newish module
 
 It has been used and tested against a number of sites running Elluminate 9.0
-to 9.7.
+to 10.0.
 
 So far it does not implement all SOAP calls, but concentrates on entities
 such as users, meetings, preloads and meeting participants.

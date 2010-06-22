@@ -48,12 +48,14 @@ instance, or the default connection that will be used.
 =cut
 
 sub connection {
-    my ($self, $connection) = @_;
+    my $self = shift;
+
+    my $connection;
 
     if (ref($self)) {
-	$self->_connection($connection)
-	    if $connection;
-	$connection ||= $self->_connection;
+	$self->_connection(shift)
+	    if @_;
+	$connection = $self->_connection;
     }
 
     return $connection || $self->SUPER::connection;
@@ -110,10 +112,9 @@ sub construct {
 	unless (Elive::Util::_reftype($data) eq 'HASH');
 
     #
-    # todo: Most if not all of this stuff can be handled via the
-    # moose/mouse BUILD method
-    # sort this?  remove %Elive::_construct_opts global variable
+    # Ugly use of package globals!
     #
+
     local (%Elive::_construct_opts) = %opt;
 
     my %known_properties;
@@ -121,7 +122,7 @@ sub construct {
 
     warn YAML::Dump({construct => $data})
 	if (Elive->debug > 1);
-
+    
     my $self = Scalar::Util::blessed($data)
 	? $data
 	: $class->new($data);
@@ -131,9 +132,6 @@ sub construct {
     my $connection = delete $opt{connection} || $class->connection
 	or die "not connected";
 
-    #
-    # Retain one copy of the data for this connection
-    #
     die "can't construct objects without a connection"
 	unless $connection;
 
@@ -262,7 +260,7 @@ sub _thaw {
     # (inserts, updates, querys):
     # 1. Entity names returned capitalised: 'LoginName' => 'loginName
     # 2. Primary key returned as Id, rather than <entity_name>Id
-    # 3. Aliases. Usually a result of name name changes between versions
+    # 3. Aliases. Usually a result of name changes between versions
     #
     my %prop_key_map = map {ucfirst($_) => $_} @properties;
 
@@ -399,7 +397,7 @@ sub _unpack_results {
 
 		    if (exists ($value->{Entry})) {
 
-			$value =  $value->{Entry};
+			$value = $value->{Entry};
 			#
 			# Looks like we've got Key, Value pairs.
 			# Throw array the key and reference the value,
@@ -424,7 +422,7 @@ sub _unpack_results {
 		return $class->_unpack_results($value);
 	    }
 
-	    $results->{$key} =  $class->_unpack_results($value);
+	    $results->{$key} = $class->_unpack_results($value);
 	}
 	    
     }
@@ -548,8 +546,7 @@ last retrieved or saved.
 =cut
 
 sub is_changed {
-
-    my ($self) = @_;
+    my $self = shift;
 
     my @updated_properties;
     my $db_data = $self->_db_data;
@@ -586,12 +583,12 @@ Set entity properties.
 =cut
 
 sub set {
-    my ($self, @args) = @_;
+    my $self = shift;
 
     die "attempted to modify  data in a deleted record"
 	if ($self->_deleted);
 
-    return $self->SUPER::set(@args);
+    return $self->SUPER::set(@_);
 }
 
 sub _readback {
@@ -607,7 +604,7 @@ sub _readback {
     #
     # Check that the return response has our inserts
     #
-    my $rows =  $class->_process_results( $results );
+    my $rows = $class->_process_results( $results );
     $class->_readback_check($sent_data, $rows);
 
     return @$rows;
@@ -631,11 +628,9 @@ generated for you and returned with the newly created object.
 sub insert {
     my ($class, $insert_data, %opt) = @_;
 
-    die "usage: ${class}->insert( \\%data, %opts )"
-	unless (Elive::Util::_reftype($insert_data) eq 'HASH');
-
-    my $connection = $opt{connection} || $class->connection
-	or die "not connected";
+    my $connection = $opt{connection}
+		      || $class->connection
+			  or die "not connected";
 
     my $db_data = $class->_freeze($insert_data, mode => 'insert');
 
@@ -648,6 +643,7 @@ sub insert {
     my $som = $connection->call($adapter,
 				%$db_data,
 				%{$opt{param} || {}},
+##				loginPassword => $login_password,
 	);
 
     my @rows = $class->_readback($som, $insert_data, $connection);
@@ -671,7 +667,8 @@ Returns a reference to an object in the Elive::Entity in-memory cache.
 =cut
 
 sub live_entity {
-    my ($class, $url) = @_;
+    my $class = shift;
+    my $url = shift;
 
     return $Stored_Objects{ $url };
 }
@@ -688,7 +685,7 @@ Returns the contents of Elive::Entity in-memory cache.
 =cut
 
 sub live_entities {
-    my ($class) = @_;
+    my $class = shift;
     return \%Stored_Objects;
 }
 
@@ -757,7 +754,7 @@ sub update {
 
     $self->check_adapter($adapter);
 
-    my $som =  $self->connection->call($adapter,
+    my $som = $self->connection->call($adapter,
 				       %$db_updates,
 				       %{$opt{param} || {}},
 	);
@@ -805,7 +802,8 @@ sub list {
 	push( @params, filter => $filter );
     }
 
-    my $connection = $opt{connection} || $class->connection
+    my $connection = $opt{connection}
+		      || $class->connection
 	or die "no connection active";
 
     my $collection_name = $class->collection_name || $class->entity_name;
@@ -822,7 +820,7 @@ sub list {
 	$som,
 	);
 
-    my $rows =  $class->_process_results($results, %opt);
+    my $rows = $class->_process_results($results, %opt);
 
     return [
 	map { $class->construct( $_, connection => $connection) }
@@ -846,7 +844,7 @@ sub _fetch {
 
     $class->check_adapter($adapter);
 
-    my $som =  $connection->call($adapter,
+    my $som = $connection->call($adapter,
 				 %$db_query);
 
     my $results = $class->_get_results(
@@ -884,7 +882,7 @@ sub retrieve {
     die 'usage $class->retrieve([$val,..],%opt)'
 	unless Elive::Util::_reftype($vals) eq 'ARRAY';
     
-    my @key_cols =  $class->primary_key;
+    my @key_cols = $class->primary_key;
 
     for (my $n = 0; $n < @key_cols; $n++) {
 
@@ -893,7 +891,7 @@ sub retrieve {
     }
 
     my $connection = $opt{connection} || $class->connection
-	or die "no connection active";
+	or die "no connected";
 
     if ($opt{reuse}) {
 	#
@@ -935,7 +933,7 @@ sub _retrieve_all {
     die 'usage $class->_retrieve_all([$val,..],%opt)'
 	unless Elive::Util::_reftype($vals) eq 'ARRAY';
 
-    my @key_cols =  $class->primary_key;
+    my @key_cols = $class->primary_key;
     my @vals = @$vals;
 
     my %fetch;
@@ -963,7 +961,7 @@ Delete an entity from the database.
 =cut
 
 sub delete {
-    my ($self) = @_;
+    my $self = shift;
 
     my @primary_key = $self->primary_key;
     my @id = $self->id;
@@ -978,14 +976,14 @@ sub delete {
     my $adapter = 'delete'.$self->entity_name;
     $self->check_adapter($adapter);
 
-    my $som =  $self->connection->call($adapter,
+    my $som = $self->connection->call($adapter,
 				       @params);
 
     my $results = $self->_get_results(
 	$som,
 	);
 
-    my $rows =  $self->_process_results( $results );
+    my $rows = $self->_process_results( $results );
 
     #
     # Umm, we did get a read-back of the record, but the contents
@@ -999,9 +997,7 @@ sub delete {
     die "Received multiple responses for ".$self->entity_name
 	if (@$rows > 1);
 
-    $self->_deleted(1);
-
-    return;
+    return $self->_deleted(1);
 }
 
 =head2 revert
@@ -1039,7 +1035,7 @@ sub revert {
 }
 
 sub _not_available {
-    my ($self) = @_;
+    my $self = shift;
 
     die "this operation is not available for ". $self->entity_name;
 }
@@ -1053,7 +1049,7 @@ BEGIN {
 	=> as 'Int'
 	=> where {m{^\d+$}
 		    && 
-			(length($_) > 10
+			(!$_ || length($_) > 10
 			 or warn "doesn't look like a hi-res date: $_")}
         => message {"invalid date: $_"};
 }
@@ -1076,7 +1072,6 @@ sub DEMOLISH {
 	#
 	$self->_db_data(undef);
     }
-    return;
 }
 
 =head1 ADVANCED

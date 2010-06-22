@@ -4,12 +4,15 @@ use warnings; use strict;
 use Class::Accessor;
 use Class::Data::Inheritable;
 use HTML::Entities;
+use Scalar::Util;
 
 use base qw{Class::Accessor};
 
 use Elive;
 use Elive::Entity;
 use Elive::Util;
+use Elive::Entity::User;
+use Elive::Entity::ServerDetails;
 
 =head1 NAME
 
@@ -74,7 +77,7 @@ connectivity and authentication details.
 sub connect {
     my ($class, $url, $user, $pass, %opt) = @_;
 
-    $url =~ s{/$}{};
+    $url =~ s{/$}{}x;
 
     my $uri_obj = URI->new($url, 'http');
 
@@ -161,7 +164,8 @@ sub call {
 	my $value = $params{$name};
 
 	$value = SOAP::Data->type(string => Elive::Util::string($value))
-	    unless UNIVERSAL::isa($value, 'SOAP::Data');
+	    unless (Scalar::Util::blessed($value)
+		    && eval {$value->isa('SOAP::Data')});
 
 	my $soap_param = $value->name($name);
 
@@ -189,12 +193,9 @@ sub login {
 	my $username = $self->user
 	    or return;
 
-	eval "use  Elive::Entity::User";
-	die $@ if $@;
-
 	$login_entity = Elive::Entity::User->get_by_loginName($username,
 	    connection => $self)
-	    or die "unable to get login user: $username";
+	    or die "unable to get login user: $username\n";
 
 	$self->_login($login_entity);
     }
@@ -215,12 +216,9 @@ sub server_details {
 
     unless ($server_details) {
 
-	eval "use  Elive::Entity::ServerDetails";
-	die $@ if $@;
-
 	my $server_details_list = Elive::Entity::ServerDetails->list(connection => $self);
 
-	die "unable to get server details"
+	die "unable to get server details\n"
 	    unless (Elive::Util::_reftype($server_details_list) eq 'ARRAY'
 		    && $server_details_list->[0]);
 
@@ -259,7 +257,7 @@ sub _soap_header_xml {
     my @user_auth =  (map {HTML::Entities::encode_entities( $_ )}
 		      ($self->user, $self->pass));
 
-    return sprintf (<<EOD, @user_auth);
+    return sprintf (<<'EOD', @user_auth);
     <h:BasicAuth
       xmlns:h="http://soap-authentication.org/basic/2001/10/"
     soap:mustUnderstand="1">

@@ -1,15 +1,30 @@
 Revision history for Elive
 
+0.70    21st June 2010
+        Support for Elluminate 9.7 => 10.0
+        - New Preload properties: isProtected and isDataAvailable.
+        - New Recording properties: sessionInstanceId, startDate and endDate
+        - Accommodated some newly introduced bugs/changes:
+
+          -- User get_by_loginName() is no longer case insensitive
+
+          -- Preloaded whiteboard files lost extension during insert/update
+             (introduction.wdb => introduction).
+
+             Note: attempted insert/update of files with no extension will
+             crash the SOAP request with the error message:
+
+                  'String index out of range: -1'
+
 0.69    11th June 2010
 
         - Raised SOAP::Lite dependency 0.69 => 0.712. This eliminates some
           encoding failures under old perls (5.8.8-) and slightly older
-          versions of SOAP::Lite. Also allowed me to removed the decoding
-          of html entities from Elive::Entity. Thanks SOAP::Lite maintainers!
+          versions of SOAP::Lite. Encoding/decoding of HTML entities now
+          properly handled. Thanks SOAP::Lite maintainers!
 
-        - Introduced t/00c-critic.t Test::Perl::Critic. A swag of minor
-          refactorings to Elive codebase in order to pass severity level
-          4 tests.
+        - Minor refactorings refactorings to Elive codebase in order to pass
+          Test::Perl::Critic severity level 4 tests (00c-critic.t).
 
           -- Most commonly, Atomic parsing of subroutine arguments. E.g.
              what was:

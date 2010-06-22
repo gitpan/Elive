@@ -499,7 +499,7 @@ sub buildJNLP {
 
     for (delete $opt{user} || $connection->login->userId) {
 
-	$soap_params{m{^\d+$}? 'userId' : 'userName'} = Elive::Util::_freeze($_, 'Str');
+	$soap_params{m{^\d+$}x? 'userId' : 'userName'} = Elive::Util::_freeze($_, 'Str');
     }
 
     my $adapter = $self->check_adapter('buildMeetingJNLP');
@@ -539,7 +539,12 @@ available as both class level and object level methods.
 sub web_url {
     my ($self, %opt) = @_;
 
-    my $meeting_id = $opt{meeting_id};
+    my $meeting_id = $opt{meeting_id} || $self->meetingId;
+    $meeting_id = Elive::Util::_freeze($meeting_id, 'Str');
+
+   die "no meeting_id given"
+	unless $meeting_id;
+
     my $connection = $self->connection || $opt{connection}
 	or die "not connected";
 
@@ -673,10 +678,8 @@ sub list_recordings {
     
 =head1 BUGS AND LIMITATIONS
 
-Be aware that it does not seem to be possible to individually set meetings
-to be restricted or unrestricted (as of Elluminate 9.7). You may however
-configure your Elluminate instance to make all meetings restricted or
-unrestricted. 
+Meetings can not be set to restricted (as of Elluminate 9.7 - 10.0). As a
+safeguard you should configure Elluminate to restrict meetings by default.
 
 =head1 SEE ALSO
 
