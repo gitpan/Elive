@@ -7,14 +7,15 @@ Elive - Elluminate Live! (c) SDK bindings
 
 =head1 VERSION
 
-Version 0.71
+Version 0.72
 
 =cut
 
-our $VERSION = '0.71';
+our $VERSION = '0.72';
 
 use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
+use Scalar::Util;
 
 use YAML;
 
@@ -356,7 +357,6 @@ sub known_adapters {
 }
 
 our %Meta_Data;
-our %Meta_Data_Accessor;
 
 =head2 has_metadata
 
@@ -369,11 +369,13 @@ sub has_metadata {
     my $class = shift;
     my $accessor = shift;
 
-    unless (exists $Meta_Data_Accessor{ $accessor }) {
+    my $accessor_fun = $class->can($accessor);
+
+    unless ($accessor_fun) {
 
 	no strict 'refs';
 
-	$Meta_Data_Accessor{ $accessor } ||= sub {
+	$accessor_fun = sub {
 	    my $self = shift;
 	    my $ref = $self->_refaddr
 		or return;
@@ -385,15 +387,15 @@ sub has_metadata {
 	    return $Meta_Data{ $ref }{ $accessor };
 	};
 
-	*{$class.'::'.$accessor} = $Meta_Data_Accessor{ $accessor }
+	*{$class.'::'.$accessor} = $accessor_fun;
     }
 
-    return $Meta_Data_Accessor{ $accessor };
+    return $accessor_fun;
 }
 
 sub DEMOLISH {
     my $self = shift;
-    delete  $Meta_Data{Scalar::Util::refaddr($self)};
+    delete $Meta_Data{Scalar::Util::refaddr($self)};
     return;
 }
 
@@ -625,9 +627,9 @@ such as users, meetings, preloads and meeting participants.
 
 =item Elive does not support hosted (SAS) systems
 
-The package currently supports only the installed server version of Elluminate
-Live which uses the ELM management layer. The current release does not support
-the hosted servers deployed with SAS (Session Administration System).
+The Elive distribution currently supports only the installed server version of
+Elluminate Live which uses the ELM management layer. The current release does
+not support hosted servers deployed with SAS (Session Administration System).
 
 =back
 
@@ -666,8 +668,8 @@ L<http://search.cpan.org/dist/Elive/>
 
 =head1 ACKNOWLEDGEMENTS
 
-Thanks to Lex Lucas and Simon Haidley for their testing, support and
-direction during the construction of this module.
+Thanks to Lex Lucas and Simon Haidley for their ongoing support and
+assistance with the development of this module.
 
 =head1 COPYRIGHT & LICENSE
 
