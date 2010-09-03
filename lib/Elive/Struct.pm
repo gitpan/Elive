@@ -8,6 +8,8 @@ use base qw{Elive};
 use Elive::Array;
 use Elive::Util;
 
+use Carp;
+
 use YAML;
 
 =head1 NAME
@@ -107,7 +109,7 @@ sub BUILDARGS {
 		}		    
 	    }
 	    else {
-		warn "$class: unknown property: $prop";
+		Carp::carp "$class: unknown property: $prop";
 	    }
 
 	    $cooked{$prop} = $value;
@@ -398,7 +400,7 @@ sub _cmp_col {
 		    $cmp ||= YAML::Dump($v1) cmp YAML::Dump($v2);
 		}
 		else {
-		    die "class $class: unknown type: $type\n";
+		    Carp::croak "class $class: unknown type: $type\n";
 		}
 	    }
 	}
@@ -476,7 +478,7 @@ sub set {
     foreach (keys %data) {
 
 	unless ($entity_column{$_}) {
-	    warn ((ref($self)||$self).": unknown property: $_");
+	    Carp::carp ((ref($self)||$self).": unknown property: $_");
 	    next;
 	}
 
@@ -530,17 +532,17 @@ sub set {
 }
 
 sub can {
-    my ($self, $method) = @_;
+    my ($class, $method) = @_;
 
     my $subref;
 
-    unless ($subref = $self->SUPER::can($method)) {
+    unless ($subref = eval{ $class->SUPER::can($method) }) {
 
-	my $aliases = $self->_aliases;
+	my $aliases = eval{ $class->_aliases };
 
 	if ($aliases && $aliases->{$method}
 	    && (my $alias_to = $aliases->{$method}{to})) {
-	    $subref =  $self->SUPER::can($alias_to);
+	    $subref =  $class->SUPER::can($alias_to);
 	}
     }
 
@@ -548,18 +550,15 @@ sub can {
 }
 
 sub AUTOLOAD {
-    my ($self) = @_;
-
     my @class_path = split('::', ${Elive::Struct::AUTOLOAD});
 
-    my $class = join('::', @class_path);
     my $method = pop(@class_path);
+    my $class = join('::', @class_path);
+
     die "Autoload Dispatch Error: ".${Elive::Struct::AUTOLOAD}
         unless $class && $method;
 
-    my $subref;
-
-    if ($subref = $self->can($method)) {
+    if (my $subref = $class->can($method)) {
 
 	{
 	    no strict 'refs';
@@ -569,7 +568,7 @@ sub AUTOLOAD {
 	goto $subref;
     }
     else {
-	die ref($self).": unknown method $method";
+	die $class.": unknown method $method";
     }
 }
 
