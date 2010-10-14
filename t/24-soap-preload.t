@@ -1,18 +1,16 @@
 #!perl
 use warnings; use strict;
-use Test::More tests => 49;
+use Test::More tests => 47;
 use Test::Exception;
 use Test::Builder;
 
 use lib '.';
 use t::Elive;
 
-BEGIN {
-    use_ok('Elive');
-    use_ok( 'Elive::Entity::Preload' );
-    use_ok( 'Elive::Entity::Meeting' );
-    use_ok ('Elive::Util');
-};
+use Elive;
+use Elive::Entity::Preload;
+use Elive::Entity::Meeting;
+use Elive::Util;
 
 our $t = Test::Builder->new;
 my $class = 'Elive::Entity::Preload' ;
@@ -24,7 +22,7 @@ $data[1] = join('',map {pack('C', $_)} (0..255));
 for (0..1) {
     #
     # belongs in util tests
-    ok(Elive::Util::_hex_decode(Elive::Util::_hex_encode($data[$_])) eq $data[$_], "hex encode/decode round-trip [$_]");   
+    is(Elive::Util::_hex_decode(Elive::Util::_hex_encode($data[$_])), $data[$_], "hex encode/decode round-trip [$_]");   
 }
 
 SKIP: {
@@ -32,8 +30,7 @@ SKIP: {
     my %result = t::Elive->test_connection(only => 'real');
     my $auth = $result{auth};
 
-    skip ($result{reason} || 'skipping live tests',
-	43)
+    skip ($result{reason} || 'skipping live tests', 45)
 	unless $auth;
 
     my $connection_class = $result{class};
@@ -53,15 +50,15 @@ SKIP: {
 
     isa_ok($preloads[0], $class, 'preload object');
 
-    ok($preloads[0]->type eq 'whiteboard', "preload type is 'whiteboard'");
-    ok($preloads[0]->mimeType eq 'application/octet-stream','expected value for mimeType (guessed)');
+    is($preloads[0]->type, 'whiteboard', "preload type is 'whiteboard'");
+    is($preloads[0]->mimeType, 'application/octet-stream','expected value for mimeType (guessed)');
     ok($preloads[0]->name =~ m{test(\.wbd)?$}, 'preload name, as expected');
-    ok($preloads[0]->ownerId eq Elive->login->userId, 'preload ownerId, as expected');
+    is($preloads[0]->ownerId, Elive->login->userId, 'preload ownerId, as expected');
 
     my $data_download = $preloads[0]->download;
 
     ok($data_download, 'got data download');
-    ok($data_download eq $data[0], 'download data matches upload');
+    is($data_download, $data[0], 'download data matches upload');
 
     ok (my $preload_id = $preloads[0]->preloadId, 'got preload id');
 
@@ -87,7 +84,7 @@ SKIP: {
     },
     );
 
-    ok($preloads[1]->mimeType eq 'audio/x-wav','expected value for mimeType (guessed)');
+    is($preloads[1]->mimeType, 'audio/x-wav','expected value for mimeType (guessed)');
 
     $preloads[2] = Elive::Entity::Preload->upload(
     {
@@ -99,7 +96,7 @@ SKIP: {
     },
     );
 
-    ok($preloads[2]->mimeType eq 'video/mpeg','expected value for mimeType (set)');
+    is($preloads[2]->mimeType, 'video/mpeg','expected value for mimeType (set)');
 
     $preloads[3] = Elive::Entity::Preload->upload(
     {
@@ -110,14 +107,14 @@ SKIP: {
     },
     );
 
-    ok($preloads[3]->type eq 'plan','expected type (plan)');
-    ok($preloads[3]->mimeType eq 'application/octet-stream','expected mimeType for plan');
+    is($preloads[3]->type, 'plan','expected type (plan)');
+    is($preloads[3]->mimeType, 'application/octet-stream','expected mimeType for plan');
 
     dies_ok(sub{$preloads[3]->update({name => 'test_plan.elpx updated'})}, 'preload update - not available');
 
     $data_download = $preloads[3]->download;
 
-    ok($data_download eq $data[1], 'plan download matches upload');
+    is($data_download, $data[1], 'plan download matches upload');
 
     my $check;
 
@@ -140,7 +137,7 @@ SKIP: {
 
     isa_ok($preloads_list, 'ARRAY', 'preloads list');
 
-    ok(@$preloads_list == scalar @preloads, 'meeting has expected number of preloads');
+    is(@$preloads_list, scalar @preloads, 'meeting has expected number of preloads');
 
     do {
 	my @preload_ids = map {$_->preloadId} @preloads;
@@ -180,6 +177,29 @@ SKIP: {
 
     dies_ok(sub {$preloads[0]->retrieve([$preload_id])}, 'attempted retrieval of deleted preload - dies');
 
+    my $server_details = Elive->server_details;
+    if ($server_details->version ge '10.0.0') {
+	$t->skip('skipping known Elluminate v10.0.0+ bugs')
+	    for (1..2);
+    }
+    else {
+
+	lives_ok( sub {
+	    push (@preloads, Elive::Entity::Preload->upload(
+		      {
+			  type => 'whiteboard',
+			  name => 'test_no_extension',
+			  ownerId => Elive->login,
+			  mimeType => 'video/mpeg',
+			  data => $data[1],
+		  },
+		  ))},
+		  'upload of preload with no extension - lives'
+	    );
+
+	is($preloads[-1]->mimeType, 'video/mpeg','expected value for mimeType (set, no-extension)');
+    }
+
     for my $i (1 .. $#preloads) {
 	$preloads[$i]->delete;
     }
@@ -206,7 +226,7 @@ SKIP: {
 
 	diag 'imported preload has size: '.$imported_preload->size.' and type '.$imported_preload->type.' ('.$imported_preload->mimeType.')';
 
-	ok($imported_preload->name eq $basename, 'imported preload name as expected');
+	is($imported_preload->name, $basename, 'imported preload name as expected');
 	ok($imported_preload->size > 0, 'imported preload has non-zero size');
 	lives_ok (sub {$imported_preload->delete}, 'imported preload delete - lives');
     }

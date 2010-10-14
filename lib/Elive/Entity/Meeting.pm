@@ -29,6 +29,16 @@ Elive::Entity::MeetingParameters and Elive::Entity::ServerParameters.
 
 __PACKAGE__->entity_name('Meeting');
 __PACKAGE__->collection_name('Meetings');
+__PACKAGE__->params(
+    seats => 'Int',
+    preloadId => 'Int',
+    recurrenceCount => 'Int',
+    recurrenceDays => 'Int',
+    timeZone => 'Str',
+    userId => 'Str',
+    startDate => 'HiResDate',
+    endDate => 'HiResDate',
+    );
 
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
 __PACKAGE__->primary_key('meetingId');
@@ -62,6 +72,8 @@ has  'allModerators' => (is => 'rw', isa => 'Bool',
 has  'restrictedMeeting' => (is => 'rw', isa => 'Bool',
 			     documentation => "Restricted meeting");
 
+has 'adapter' => (is => 'rw', isa => 'Str',
+		  documentation => 'adapter used to create the meeting/session');
 
 =head1 METHODS
 
@@ -103,29 +115,6 @@ C<recurrenceDays> parameters.
                         });
 =cut
 
-sub insert {
-    my ($class, $data, %opt) = @_;
-
-    die "usage: $class->insert(\\%data, %opts)"
-	unless (Elive::Util::_reftype($data) eq 'HASH');
- 
-    my %params = (seats => 'Int',
-		  recurrenceCount => 'Int',
-		  recurrenceDays => 'Int',
-		  timeZone => 'Str');
-
-    foreach (keys %params) {
-	my $type = $params{$_};
-	#
-	# these are parameters, not properties
-	#
-	$opt{param}{$_} = Elive::Util::_freeze(delete $data->{$_}, $type)
-	    if exists $data->{$_}
-    }
-
-    return $class->SUPER::insert($data, %opt);
-}
-
 =head2 update
 
     my $meeting = Elive::Entity::Meeting->update({
@@ -140,24 +129,6 @@ sub insert {
        });
 
 =cut
-
-sub update {
-    my ($self, $update_data, %opt) = @_;
-
-    my %params = (seats => 'Int',
-		  timeZone => 'Str');
-
-    foreach (keys %params) {
-	my $type = $params{$_};
-	#
-	# these are parameters, not properties
-	#
-	$opt{param}{$_} = Elive::Util::_freeze(delete $update_data->{$_}, $type)
-	    if exists $update_data->{$_}
-    }
-
-    return $self->SUPER::update($update_data, %opt);
-}
 
 =head2 delete
 
@@ -214,24 +185,36 @@ For example, to list all meetings for a particular user over the next week:
    my $meetings = Elive::Entity::Meeting->list_user_meetings_by_date(
         [$user_id, $now->epoch.'000', $next_week->epoch.'000']
        );
+
+   # equivalently:
+
+   my $meetings = Elive::Entity::Meeting->list_user_meetings_by_date(
+        {userId => $user_id,
+         startDate => $now->epoch.'000',
+         endDate => $next_week->epoch.'000'}
+       );
+
 =cut
 
 sub list_user_meetings_by_date {
     my ($class, $params, %opt) = @_;
 
-    die 'usage: $class->user_meetings_by_date([$user, $start_date, $end_date])'
-	unless (Elive::Util::_reftype($params) eq 'ARRAY'
-		&& $params->[0] && @$params <= 3);
-
     my %fetch_params;
-    $fetch_params{userId}    = Elive::Util::_freeze(shift @$params,'Str');
-    $fetch_params{startDate} = Elive::Util::_freeze(shift @$params,'HiResDate');
-    $fetch_params{endDate} = Elive::Util::_freeze(shift @$params,'HiResDate');
+    my $reftype = Elive::Util::_reftype($params);
 
-    my $adapter = $class->check_adapter('listUserMeetingsByDate');
+    if ($reftype eq 'HASH') {
+	%fetch_params = %$params;
+    }
+    elsif ($reftype eq 'ARRAY'
+	   && $params->[0] && @$params <= 3) {
+	@fetch_params{qw{userId startDate endDate}} = @$params;
+    }
+    else {
+	die 'usage: $class->user_meetings_by_date([$user, $start_date, $end_date])'
+    }
 
-    return $class->_fetch(\%fetch_params,
-			  adapter => $adapter,
+    return $class->_fetch($class->_freeze(\%fetch_params),
+			  command => 'listUserMeetingsByDate',
 			  %opt,
 	);
 }
@@ -256,23 +239,22 @@ sub add_preload {
     die 'usage: $meeting_obj->add_preload($preload || $preload_id)'
 	unless $preload_id;
 
-    my $meeting_id = $opt{meeting_id} || $self->meetingId;
+    my %params = %{ $opt{param} || {} };
 
+    my $meeting_id = $opt{meeting_id} || $self->meetingId;
     die "unable to determine meeting_id"
 	unless $meeting_id;
 
-    my $adapter = $self->check_adapter('addMeetingPreload');
+    $params{meetingId} ||= $meeting_id;
+    $params{preloadId} = $preload_id;
 
     my $connection = $self->connection
 	or die "not connected";
 
-    my $som = $connection
-	->call($adapter,
-	       meetingId => Elive::Util::_freeze($meeting_id, 'Int'),
-	       preloadId => Elive::Util::_freeze($preload_id, 'Int'),
-	);
+    my $som = $connection->call('addMeetingPreload',
+				%{ $self->_freeze( \%params ) });
 
-    return $self->_check_for_errors($som);
+    return $connection->_check_for_errors($som);
 }
 
 =head2 check_preload
@@ -294,18 +276,16 @@ sub check_preload {
     die "unable to determine meeting_id"
 	unless $meeting_id;
 
-    my $adapter = $self->check_adapter('checkMeetingPreload');
-
     my $connection = $self->connection
 	or die "not connected";
 
     my $som = $connection
-	->call($adapter,
+	->call('checkMeetingPreload',
 	       preloadId => Elive::Util::_freeze($preload_id, 'Int'),
 	       meetingId => Elive::Util::_freeze($meeting_id, 'Int'),
 	       );
 
-    $self->_check_for_errors($som);
+    $connection->_check_for_errors($som);
 
     my $results = $self->_unpack_as_list($som->result);
 
@@ -331,22 +311,36 @@ sub is_participant {
     die "unable to determine meeting_id"
 	unless $meeting_id;
 
-    my $adapter = $self->check_adapter('isParticipant');
-
     my $connection = $self->connection
         or die "not connected";
 
+    my $command = $opt{command} || 'isParticipant';
+
     my $som = $connection
-        ->call($adapter,
+        ->call($command,
                userId => Elive::Util::_freeze($user, 'Str'),
                meetingId => Elive::Util::_freeze($meeting_id, 'Int'),
                );
 
-    $self->_check_for_errors($som);
+    $connection->_check_for_errors($som);
 
     my $results = $self->_unpack_as_list($som->result);
 
     return @$results && Elive::Util::_thaw($results->[0], 'Bool');
+}
+
+=head2 is_moderator
+
+    my $ok = $meeting_obj->is_moderator($user);
+
+Checks that the user is a meeting moderator.
+
+=cut
+
+sub is_moderator {
+    my ($self, $user, %opt) = @_;
+
+    return $self->is_participant($user, %opt, command => 'isModerator');
 }
 
 sub _readback_check {
@@ -366,28 +360,6 @@ sub _readback_check {
     $rows = [$rows->[0]] if @$rows > 1;
 
     return $class->SUPER::_readback_check(\%updates, $rows, @args);
-}
-
-sub _thaw {
-    my ($class, $db_data, @args) = @_;
-
-    my $data = $class->SUPER::_thaw($db_data, @args);
-
-    if ($data->{Adapter}) {
-	#
-	# meeting result can include a spurious Adapter property. Ignore it
-	#
-
-	if ($class->debug) {
-	    print STDERR "Stray meeting adaptor found:\n";
-	    print STDERR YAML::Dump($data->{Adapter});
-	    print STDERR "\n";
-	}
-	
-	delete $data->{Adapter};
-    }
-
-    return $data;
 }
 
 =head2 remove_preload
@@ -413,14 +385,12 @@ sub remove_preload {
     my $connection = $self->connection
 	or die "not connected";
 
-    my $adapter = $self->check_adapter('deleteMeetingPreload');
-
-    my $som = $connection->call($adapter,
+    my $som = $connection->call('deleteMeetingPreload',
 				meetingId => Elive::Util::_freeze($meeting_id, 'Int'),
 				preloadId => Elive::Util::_freeze($preload_id, 'Int'),
 				);
 
-    return $self->_check_for_errors($som);
+    return $connection->_check_for_errors($som);
 }
     
 =head2 buildJNLP 
@@ -466,7 +436,7 @@ See also L<http://en.wikipedia.org/wiki/JNLP>.
 sub buildJNLP {
     my ($self, %opt) = @_;
 
-    my $connection = $self->connection
+    my $connection = $self->connection || $opt{connection}
 	or die "not connected";
 
     my $meeting_id = $opt{meeting_id} ||= $self->meetingId;
@@ -487,17 +457,11 @@ sub buildJNLP {
 	$soap_params{m{^\d+$}x? 'userId' : 'userName'} = Elive::Util::_freeze($_, 'Str');
     }
 
-    my $adapter = $self->check_adapter('buildMeetingJNLP');
+    my $som = $connection->call('buildMeetingJNLP', %soap_params);
 
-    my $som = $connection->call($adapter,
-				%soap_params,
-				);
+    my $results = $self->_get_results($som, $connection);
 
-    $self->_check_for_errors($som);
-
-    my $results = $self->_unpack_as_list($som->result);
-
-    return @$results && Elive::Util::_thaw($results->[0], 'Str');
+    return @$results && $results->[0];
 }
 
 =head2 web_url
@@ -663,9 +627,17 @@ sub list_recordings {
 
 =head1 BUGS AND LIMITATIONS
 
+=over 4
+
+=item
+
 Meetings can not be set to restricted (as of Elluminate 9.7 - 10.0), nor
-does the SDK respect the sefver default settings for restricted meetings;
-Ouch!
+does the SDK respect the server default settings for restricted meetings.
+
+Update: As of Elluminate 10.0.1, the restrictedMeeting property is inherited
+from Preferences E<gt>E<gt> Session Defaults E<gt>E<gt> Restrict Meetings.
+
+=back
 
 =head1 SEE ALSO
 

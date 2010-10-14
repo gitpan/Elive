@@ -41,7 +41,7 @@ Elive::Entity::participantList.
 
 =head2 stringify
 
-Stringifies arrays members by joining their string values with ';'.
+Serialises array members by joining their string values with ';'.
 
 =cut
 
@@ -50,7 +50,7 @@ sub stringify {
     my $arr  = shift || $self;
     my $type = shift || $self->element_class;
 
-    return Elive::Util::string($arr, $type);
+    return join(';', sort map {Elive::Util::string($_, $type)} @$arr)
 }
 
 =head2 new
@@ -75,7 +75,8 @@ Add elements to an array.
 sub add {
     my ($self, @elems) =  @_;
 
-    @elems = grep {defined} @elems;
+    @elems = (map {Scalar::Util::reftype($_)? $_: split(';')} 
+	      grep {defined} @elems);
 
     if (my $element_class = $self->element_class) {
 	foreach (@elems) {

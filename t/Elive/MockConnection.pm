@@ -11,8 +11,8 @@ A partial emulation of the SOAP connection and database backend.
 
 =cut
 
-use Elive::Connection;
-use base 'Elive::Connection';
+use Elive::Connection::SDK;
+use base 'Elive::Connection::SDK';
 
 use Elive;
 use Elive::Entity;
@@ -24,13 +24,20 @@ use t::Elive::MockSOM;
 __PACKAGE__->mk_accessors( qw{mockdb server_details_id} );
 
 sub connect {
+    goto \&_connect;
+}
+
+sub _connect {
     my ($class, $url,  $user, $pass, %opt) = @_;
 
     my $self = {};
     bless $self, $class;
 
     $url ||= 'http://elive_mock_connection';
-    $url =~ s{/$}{};
+    $url =~ s{/$}{};                    # lose trailing '/'
+    $url =~ s{/webservice\.event$}{};   # lose endpoint
+    $url =~ s{/v2$}{};                  # lose adapter path
+    $url =~ s{http://(.*)\@}{http://};  # lose credentials
     $self->url($url);
 
     $self->user($user);
@@ -53,7 +60,7 @@ sub connect {
     # Pretend that we can insert a server details record. Just for the
     # purposes of our mockup
     #
-    local($Elive::KnownAdapters{createServerDetails}) = 'c';
+    local($self->known_commands->{createServerDetails}) = 'c';
 
     my $server_details = Elive::Entity::ServerDetails->insert(
 	{
@@ -74,7 +81,9 @@ sub call {
 
     my %params = @_;
 
-    my %known_adapters = Elive->known_adapters;
+    my $known_commands = $self->known_commands;
+    $self->check_command($cmd);
+
     my $entities = Elive::Entity->entities;
     my %collections =
 	(map {@$_}
@@ -85,7 +94,7 @@ sub call {
     #
     # Determine an operation for the command
     #
-    my $crud = $known_adapters{$cmd};
+    my $crud = $known_commands->{$cmd};
     die "Uknown command $cmd in mock connection"
 	unless $crud;
 
@@ -110,9 +119,10 @@ sub call {
 		foreach my $fld (@primary_key) {
 
 		    if (defined $params{$fld}) {
-			if (my $isa = $entity_class->isa) {
+			if (my $isa = $entity_class->_isa) {
 			    #
-			    # check on existance of primary entity to go here
+			    # Isa relation. E.g. MeetingParameters isa Meeting
+			    # (check on existance of primary entity to go here)
 			    #
 			    next;
 			}
@@ -142,8 +152,8 @@ sub call {
 		$self->mockdb->{$entity_name}{ $pkey } = \%params;
 
 		if ($entity_name eq 'meeting') {
-		    local ($Elive::KnownAdapters{createServerParameters}) = 'c';
-		    local ($Elive::KnownAdapters{createMeetingParameters}) = 'c';
+		    local ($self->known_commands->{createServerParameters}) = 'c';
+		    local ($self->known_commands->{createMeetingParameters}) = 'c';
 		    $self->call('createServerParameters',
 				meetingId => $pkey,
 				seats => $params{seats}||0);
@@ -152,6 +162,7 @@ sub call {
 				recordingStatus => 'remote',
 			);
 		}
+
 		return $som;
 	    }
 	    elsif ($crud eq 'u') {

@@ -40,19 +40,23 @@ sub parse_type {
     #
     ($type) = split(/[ \| \] ]/x, $type);
 
-    my $is_array = ($type =~ m{^Elive::Array}x);
+    my $is_array;
+    my $is_struct;
+    my $elemental_type = $type;
 
-    if ($is_array) {
+    if ($type =~ m{^Elive::}) {
 
-	$type = $type->element_class || 'Str';
+	if ($is_array = $type->can('element_class')) {
+	    $elemental_type = $type->element_class || 'Str';
+	}
 
+	$is_struct = ($elemental_type  =~ m{^Elive::})
+	    && $elemental_type->isa('Elive::Struct');
     }
 
-    my $is_struct = $type =~ m{^Elive::(Struct||Entity)(::|$)}x;
+    my $is_ref = $is_array || $is_struct || $elemental_type =~ m{^Ref}x;
 
-    my $is_ref = $is_array || $is_struct || $type =~ m{^Ref}x;
-
-    return ($type, $is_array, $is_struct, $is_ref);
+    return ($elemental_type, $is_array, $is_struct, $is_ref);
 }
 
 #
@@ -118,7 +122,7 @@ sub _thaw {
 	    #
 	    # Perlise boolean flags..
 	    #
-	    $_ = m{true}i ? 1 : 0;
+	    $_ = m{^(true|1)$}i ? 1 : 0;
 	}
 	elsif ($type =~ m{^(Str|enum)}i) {
 	    #
@@ -305,16 +309,14 @@ sub string {
 	return $_
 	    unless $reftype;
 
-	return join(';', sort map {string($_, $data_type)} @$_)
-	    if $reftype eq 'ARRAY';
-
 	return $_->stringify
 	    if (Scalar::Util::blessed($_) && $_->can('stringify'));
 
 	if ($data_type) {
-	    my ($type, $is_array, $is_struct) = parse_type($data_type);
-	    return $type->stringify($_)
-		if ($is_struct && $type->can('stringify'));
+	    my ($dt) = ($data_type =~ m{(.*)});
+
+	    return $dt->stringify($_)
+		if eval{$dt->can('stringify')};
 	}
     }
 

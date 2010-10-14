@@ -3,33 +3,31 @@ use warnings; use strict;
 use Test::More tests => 77;
 use Test::Warn;
 
-BEGIN {
-    use_ok( 'Elive::Connection' );
-    use_ok( 'Elive::Entity::User' );
-    use_ok( 'Elive::Entity::ParticipantList' );
-    use_ok( 'Elive::Util');
-};
+use Elive::Connection;
+use Elive::Entity::User;
+use Elive::Entity::ParticipantList;
+use Elive::Util;
 
-ok(Elive::Util::_thaw('123456', 'Int') == 123456, 'simple Int');
-ok(Elive::Util::_thaw('+123456', 'Int') == 123456, 'Int with plus sign');
-ok(Elive::Util::_thaw('00123456', 'Int') == 123456, 'Int with leading zeros');
-ok(Elive::Util::_thaw('-123456', 'Int') == -123456, 'Int negative');
-ok(Elive::Util::_thaw('-00123456', 'Int') == -123456, 'Int negative, leading zeros');
-ok(Elive::Util::_thaw('+00123456', 'Int') == 123456, 'Int plus sign leading zeros');
-ok(Elive::Util::_thaw('01234567890000', 'HiResDate') eq '1234567890000', 'date, leading zero');
-ok(Elive::Util::_thaw(0, 'Int') == 0, 'Int zero');
-ok(Elive::Util::_thaw('-0', 'Int') == 0, 'Int minus zero');
-ok(Elive::Util::_thaw('+0', 'Int') == 0, 'Int plus zero');
-ok(Elive::Util::_thaw('0000', 'Int') == 0, 'Int multiple zeros');
+is(Elive::Util::_thaw('123456', 'Int'), 123456, 'simple Int');
+is(Elive::Util::_thaw('+123456', 'Int'), 123456, 'Int with plus sign');
+is(Elive::Util::_thaw('00123456', 'Int'), 123456, 'Int with leading zeros');
+is(Elive::Util::_thaw('-123456', 'Int'), -123456, 'Int negative');
+is(Elive::Util::_thaw('-00123456', 'Int'), -123456, 'Int negative, leading zeros');
+is(Elive::Util::_thaw('+00123456', 'Int'), 123456, 'Int plus sign leading zeros');
+is(Elive::Util::_thaw('01234567890000', 'HiResDate'), '1234567890000', 'date, leading zero');
+is(Elive::Util::_thaw(0, 'Int'), 0, 'Int zero');
+is(Elive::Util::_thaw('-0', 'Int'), 0, 'Int minus zero');
+is(Elive::Util::_thaw('+0', 'Int'), 0, 'Int plus zero');
+is(Elive::Util::_thaw('0000', 'Int'), 0, 'Int multiple zeros');
 
 ok(!Elive::Util::_thaw('false', 'Bool'), 'Bool false => 0');
-ok(Elive::Util::_thaw('true', 'Bool'), 'Bool true => 1');
+ok( Elive::Util::_thaw('true', 'Bool'), 'Bool true => 1');
 
-ok(Elive::Util::_thaw('  abc efg ', 'Str') eq 'abc efg', 'String l-r trimmed');
+is(Elive::Util::_thaw('  abc efg ', 'Str'), 'abc efg', 'String l-r trimmed');
 
-ok(Elive::Util::_thaw('on', 'enumRecordingStates') eq 'on', 'recording status - on (lc)');
-ok(Elive::Util::_thaw('OFF', 'enumRecordingStates') eq 'off', 'recording status - off (uc)');
-ok(Elive::Util::_thaw('rEMotE', 'enumRecordingStates') eq 'remote', 'recording status - remote (mixed case)');
+is(Elive::Util::_thaw('on', 'enumRecordingStates'), 'on', 'recording status - on (lc)');
+is(Elive::Util::_thaw('OFF', 'enumRecordingStates'), 'off', 'recording status - off (uc)');
+is(Elive::Util::_thaw('rEMotE', 'enumRecordingStates'), 'remote', 'recording status - remote (mixed case)');
 
 my $some_href = {a=> 1111, b=> [1,2,3], c => 'abc'};
 is_deeply(Elive::Util::_thaw($some_href, 'Ref'), $some_href,
@@ -122,8 +120,8 @@ is_deeply(\%user_contents,
 #
 
 my $aliases = Elive::Entity::ServerParameters->_get_aliases;
-ok($aliases->{requiredSeats} && $aliases->{requiredSeats}{to} eq 'seats', 'alias: requiredSeats => seats');
-ok($aliases->{permissionsOn} && $aliases->{permissionsOn}{to} eq 'fullPermissions', 'alias: permissionsOn => fullPermissions');
+is($aliases->{requiredSeats} && $aliases->{requiredSeats}{to}, 'seats', 'alias: requiredSeats => seats');
+is($aliases->{permissionsOn} && $aliases->{permissionsOn}{to}, 'fullPermissions', 'alias: permissionsOn => fullPermissions');
 
 my $server_parameters_data = {
     ServerParametersAdapter
@@ -151,7 +149,6 @@ is_deeply($server_parameters_thawed,
 # sub-structure aliases.
 #
 
-my @user_alias = ('Participant' => 'User');
 my @user_role = (2,3);
 
 #
@@ -159,10 +156,7 @@ my @user_role = (2,3);
 # unless the Participant -> User alias is defined
 #
 
-$aliases = Elive::Entity::Participant->_get_aliases;
-ok($aliases, 'got participant list aliases');
-ok(my $alias = $aliases->{lcfirst($user_alias[0])}, 'got participant alias');
-ok($alias->{to} eq lcfirst($user_alias[1]), 'Participant aliased to user');
+
 #
 # Do entire process: unpacking, thawing, constructing
 #
@@ -180,7 +174,7 @@ my $participant_data = {
 					'RoleId' => $user_role[0]
 				    }
 				},
-				$user_alias[0] => {
+				'Participant' => {
 				    'UserAdapter' => {
 					'FirstName' => 'David',
 					'Role' => {
@@ -195,7 +189,8 @@ my $participant_data = {
 					'Email' => 'david.warring@gmail.com',
 					'LoginName' => 'davey_wavey'
 				    }
-				}
+				},
+				'Type' => 0
 			    }
 			},
 			'Key' => '1239261045'
@@ -208,7 +203,7 @@ my $participant_data = {
 					'RoleId' => $user_role[1],
 				    }
 				},
-				$user_alias[1] => {
+				'Participant' => {
 				    'UserAdapter' => {
 					'FirstName' => 'Blinky',
 					'Role' => {
@@ -222,11 +217,37 @@ my $participant_data = {
 					'Deleted' => 'false',
 					'Email' => 'bbill@test.org',
 					'LoginName' => 'blinkybill'
-				    }
-				}
+				    },
+				},
+				'Type' => 0
 			    }
 			},
 			'Key' => '1239260932'
+		    },
+		    {
+			'Key' => 'Dom1:test_group',
+			'Value' => {
+			    'ParticipantAdapter' => {
+				'Participant' => {
+				    'GroupAdapter' => {
+					'Dn' =>  '',
+					'Id' => 'test_group',
+					'Members' => {
+					    'Collection' => {
+						'Entry' =>  'alice;bob',
+					    },
+					},
+				        'Name' => 'test distribution',
+				    },
+				},
+				'Role' => {
+				    'RoleAdapter' => {
+					'RoleId' => 3
+				    }
+			        },
+				'Type' => 1
+			    }
+			}
 		    }
 		    ]
 	    }
@@ -247,16 +268,23 @@ my $participant_list_sorbet  = Elive::Entity::ParticipantList->_unpack_results($
 
     isa_ok($p, 'ARRAY', 'ParticipantListAdapter->Participants');
 
-    foreach my $n (0..1) {
+    foreach my $n (0..2) {
 	ok(my $pn = $p->[$n], "found ParticipantListAdapter->Participant->[$n]");
+	ok($pn = $pn->{$_}, "hash deref $_") for 'ParticipantAdapter';
 
-	foreach ('ParticipantAdapter', $user_alias[$n],
-		 qw{UserAdapter Role RoleAdapter RoleId}) {
-	    ok($pn = $pn->{$_}, "hash deref $_");
+	my $is_group = $pn->{Type};
+
+	ok($pn = $pn->{$_}, "hash deref $_") for 'Participant';
+
+	#
+	# type 1 records contain groups. 0 contain users
+	#
+	my @path = $is_group
+	    ? qw(GroupAdapter Name)
+	    : qw(UserAdapter Role RoleAdapter RoleId);
+	foreach my $a (@path) {
+	    ok($pn = $pn->{$a}, "sorbet participant ${n} deref $a");
 	}
-
-	ok($pn == $_, "sorbet participant ${n}'s role is $_")
-	    for $user_role[$n];
     }
 }
 
@@ -293,7 +321,7 @@ my $participant_list_obj =  Elive::Entity::ParticipantList->construct($participa
     my $p = $participant_list_obj;
     ok($p = $p->$_, "found $_ in data") for('participants');
 
-    isa_ok($p, 'Elive::Array::Participants', 'participants');
+    isa_ok($p, 'Elive::Entity::ParticipantList::Participants', 'participants');
 
     foreach my $n (0..1) {
 	ok(my $pn = $p->[$n], "found participants->[$n]");
@@ -302,7 +330,21 @@ my $participant_list_obj =  Elive::Entity::ParticipantList->construct($participa
 	    ok($pn = $pn->$_, "method deref $_");
 	}
 
-	ok($pn == $_, "thawed 2nd participants role is $_")
+	ok($pn = $_, "thawed 2nd participants role is $_")
 	    for $user_role[$n];
     }
 }
+
+my $user_participant = $participant_list_obj->participants->[0]->participant;
+my $group_participant = $participant_list_obj->participants->[2]->participant;
+
+isa_ok($user_participant, 'Elive::Entity::User', 'user_participant');
+is_deeply( $user_participant,
+	   $participant_list_obj->participants->[0]->user,
+	   'participant(), user() equiv for users');
+	   
+isa_ok($group_participant, 'Elive::Entity::Group', 'group_participant');
+is_deeply( $group_participant,
+	   $participant_list_obj->participants->[2]->group,
+	   'participant(), group() equiv for groups');
+	   

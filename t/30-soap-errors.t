@@ -31,15 +31,15 @@ SKIP: {
 	lives_ok( sub{$good_som = $connection->call('getServerDetails')}, 'legitimate soap call - lives...');
     }
 
-    lives_ok( sub{Elive->_check_for_errors($good_som)}, '...and lives when checked');
+    lives_ok( sub{$connection->_check_for_errors($good_som)}, '...and lives when checked');
 
    my $bad_som;
     {
-	local ($Elive::KnownAdapters{unknownCommandXXX}) = 'c';
-	lives_ok( sub{$bad_som = $connection->call('unknownCommandXXX')}, 'call to unknown adapter - intially lives...');
+	local($connection->known_commands->{'unknownCommandXXX'}) = 'r';
+	lives_ok( sub{$bad_som = $connection->call('unknownCommandXXX')}, 'call to unknown command - intially lives...');
     }
 
-    dies_ok( sub{Elive->_check_for_errors($bad_som)}, '...but dies when checked');
+    dies_ok( sub{$connection->_check_for_errors($bad_som)}, '...but dies when checked');
 
 
 }

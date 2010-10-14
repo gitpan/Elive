@@ -7,11 +7,11 @@ Elive - Elluminate Live! (c) SDK bindings
 
 =head1 VERSION
 
-Version 0.73
+Version 0.74_2
 
 =cut
 
-our $VERSION = '0.73';
+our $VERSION = '0.74_2';
 
 use Class::Data::Inheritable;
 use base qw{Class::Data::Inheritable};
@@ -61,8 +61,8 @@ Elive is a set of Perl bindings and entity definitions for the Elluminate
 I<Live!> SDK.
 
 The Elluminate SDK runs as a SOAP service and can be used to automate the
-raising, launching and management of meetings; and other related entities,
-including users, groups, preloads, recordings and others.
+raising, management and connection to meetings; and other related entities,
+including users, groups, preloads and recordings.
 
 =head1 BACKGROUND
 
@@ -83,8 +83,6 @@ This module provides Perl object bindings to Elluminate Live! entities via
 the Command Toolkit (SDK).
 
 =cut
-
-__PACKAGE__->mk_classdata('adapter' => 'default');
 
 our $DEBUG;
 BEGIN {
@@ -111,10 +109,10 @@ See also Elive::Connection.
 =cut
 
 sub connect {
-    my ($class, $url, $login_name, $pass) = @_;
+    my ($class, $url, $login_name, $pass, %opts) = @_;
 
-    die "usage: ${class}->new(url, login_name[, pass])"
-	unless ($class && $url && $login_name);
+    die "usage: ${class}->new(url, [login_name] [, pass])"
+	unless ($class && $url);
 
     eval {require Elive::Connection};
     die $@ if $@;
@@ -124,16 +122,10 @@ sub connect {
 	$login_name,
 	$pass,
 	debug => $class->debug,
+	%opts,
 	);
 
     $class->connection($connection);
-
-    #
-    # The login name should be a valid user in the database.
-    # retrieve it as a way of authenticating the user and
-    # checking basic connectivity.
-    #
-    $connection->login;
 
     return $connection;
 }
@@ -224,140 +216,6 @@ sub debug {
     return $DEBUG || 0;
 }
 
-our %KnownAdapters;
-
-BEGIN {
-    #
-    # classify adaptors as create, read, update or delete
-    #
-    %KnownAdapters = (
-
-	addGroupMember => 'c',
-	addMeetingPreload => 'c',
-	addReport => 'c',
-
-	attendanceNotification => 'r',
-
-	changePassword => 'u',
-
-	buildMeetingJNLP => 'r',
-	buildRecordingJNLP => 'r',
-        buildReport => 'r',
-
-	checkMeetingPreload => 'r',
-
-	createGroup => 'c',
-	createMeeting => 'c',
-	createPreload => 'c',
-	createRecording => 'c',
-	createUser => 'c',
-
-	deleteGroup => 'd',
-	deleteMeeting => 'd',
-	deleteMeetingPreload => 'd',
-	deleteParticipant => 'd',
-	deleteRecording => 'd',
-	deleteReport => 'd',
-	deletePreload => 'd',
-	deleteUser => 'd',
-
-	getGroup => 'r',
-	getMeeting => 'r',
-	getMeetingParameters => 'r',
-	getPreload => 'r',
-	getPreloadStream => 'r',
-	getRecording => 'r',
-	getReport => 'r',
-	getRecordingStream => 'r',
-        getReport          => 'r',
-	getServerDetails => 'r',
-	getServerParameters => 'r',
-	getUser => 'r',
-
-	importPreload => 'c',
-	importRecording => 'c',
-
-	isParticipant => 'r',
-
-	listGroups => 'r',
-	listMeetingPreloads => 'r',
-	listMeetings => 'r',
-	listParticipants => 'r',
-	listPreloads => 'r',
-	listRecordings => 'r',
-        listReports => 'r',
-	listUserMeetingsByDate => 'r',
-	listUsers => 'r',
-
-	resetGroup => 'u',
-	resetParticipantList => 'u',
-
-	setParticipantList => 'u',
-
-	streamPreload => 'u',
-	streamRecording => 'u',
-
-	updateMeeting => 'u',
-	updateMeetingParameters => 'u',
-	updateRecording => 'u',
-	updateReport => 'u',
-	updateServerParameters => 'u',
-	updateUser => 'u',
-
-	);
-}
-
-=head2 check_adapter
-
-    Elive->check_adapter('getUser')
-
-Asserts that the adapter is valid, i.e. it's in the list of known adapters.
-
-See also: elive_lint_config.
-
-=cut
-
-sub check_adapter {
-    my $class = shift;
-    my $adapter = shift;
-    my $crud = shift; #create, read, update or delete
-
-    my $usage = "usage: \$class->check_adapter(\$name[,'c'|'r'|'u'|'d'])";
-    die $usage unless $adapter;
-
-    my %known_adapters = $class->known_adapters;
-
-    die "Unknown adapter: $adapter"
-	unless exists $known_adapters{$adapter};
-
-    if ($crud) {
-	$crud = lc(substr($crud,0,1));
-	die $usage
-	    unless $crud =~ m{^[c|r|u|d]$}x;
-
-	my $adapter_type = $known_adapters{$adapter};
-	die "misconfigured adapter: $adapter"
-	    unless $adapter_type &&  $adapter_type  =~ m{^[c|r|u|d]$}x;
-
-	die "adapter $adapter. Type mismatch. Expected $crud, found $adapter_type"
-	    unless ($adapter_type eq $crud);
-    }
-
-    return $adapter;
-}
-
-=head2 known_adapters
-
-Returns an array of hash-value pairs for all Elluminate I<Live!> adapters
-required by Elive. This list is cross-checked by the script elive_lint_config. 
-
-=cut
-
-sub known_adapters {
-    my $class = shift;
-    return %KnownAdapters;
-}
-
 our %Meta_Data;
 
 =head2 has_metadata
@@ -409,8 +267,8 @@ Elluminate Services Errors:
 
 =item   "Unable to determine a command for the key : Xxxx"
 
-This may indicate that the particular command adaptor is is not available
-for your site instance. Please follow the instructions in the README file
+This may indicate that the particular command is is not available for your
+site instance. Please follow the instructions in the README file
 for detecting and repairing missing adapters.
 
 =item   "User [<username>], not permitted to access the command {<command>]"
@@ -422,59 +280,6 @@ README file.
 =back
 
 =cut
-
-sub _check_for_errors {
-    my $class = shift;
-    my $som = shift;
-
-    die $som->fault->{ faultstring } if ($som->fault);
-
-    my $result = $som->result;
-    my @paramsout = $som->paramsout;
-
-    warn "result: ".YAML::Dump($result, @paramsout)
-	if ($class->debug);
-
-    if (@paramsout >= 2 && !$paramsout[1]) {
-	#
-	# error format sometimes seen with elluminate 9.6+. Can occur
-	# when request is malformed
-	#
-	die join(' ', $paramsout[0]);
-    }
-    elsif(!Elive::Util::_reftype($result)) {
-	#
-	# Simple scalar - we're done
-	#
-	return;
-    }
-    
-    #
-    # Look for Elluminate-specific errors
-    #
-    if (my $code = $result->{Code}{Value}) {
-
-	#
-	# Elluminate error!
-	#
-	
-	my $reason = $result->{Reason}{Text};
-
-	my $trace = $result->{Detail}{Stack}{Trace};
-	my @stacktrace;
-	if ($trace) {
-	    @stacktrace = (Elive::Util::_reftype($trace) eq 'ARRAY'
-			   ? @$trace
-			   : $trace);
-
-	}
-
-	my %seen;
-
-	my @error = grep {defined($_) && !$seen{$_}++} ($code, $reason, @stacktrace);
-	Carp::croak join(' ', @error) || YAML::Dump($result);
-    }
-}
 
 =head1 SCRIPTS
 
@@ -521,15 +326,13 @@ see the README file.
 
 =head1 SEE ALSO
 
-Perl Modules (included in the Elive distribution):
+L<Elive::API> - This is a separate CPAN module that implements the alternate Elluminate I<Live!> Standard Bridge API. 
+
+The following classes are included in this distribution and implement the SDK bindings:
 
 =over 4
 
-=item Elive::Connection - Elluminate SOAP connection
-
-=item Elive::Struct - base class for Elive::Entity
-
-=item Elive::Entity - base class for all elive entities
+=item Elive::Connection::SDK - Elluminate SOAP connection
 
 =item Elive::Entity::Group
 
@@ -629,9 +432,12 @@ such as users, meetings, preloads and meeting participants.
 
 =item Elive does not support hosted (SAS) systems
 
-The Elive distribution currently supports only the installed server version of
-Elluminate Live which uses the ELM management layer. The current release does
-not support hosted servers deployed with SAS (Session Administration System).
+The Elive distribution only supports the Elluminate SDK which is implemented
+by ELM (Elluminate Live Manager) session manager. This SDK is not support by
+SAS (Session Administration System).
+
+Update: See also the companion CPAN module L<Elive::API> which is under
+construction and will support the alternate Elluminate I<Live!> standard bridge.
 
 =back
 

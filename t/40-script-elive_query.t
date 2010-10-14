@@ -15,17 +15,12 @@ if ( not $ENV{TEST_AUTHOR} ) {
     plan( skip_all => $msg );
 }
 
-eval "use Test::Script::Run";
+eval "use Test::Script::Run 0.04";
 
 if ( $EVAL_ERROR ) {
-    my $msg = 'Test::Script::Run required to run scripts';
+    my $msg = 'Test::Script::Run 0.40 required to run scripts';
     plan( skip_all => $msg );
 }
-
-unless (${Test::Script::Run::VERSION} >= '0.04') {
-    my $msg = "Test::Script::Run version (${Test::Script::Run::VERSION} < 0.04)";
-    plan( skip_all => $msg );
-} 
 
 local ($ENV{TERM}) = 'dumb';
 
@@ -40,7 +35,7 @@ do {
 
     my ( $result, $stdout, $stderr ) = run_script ($script_name, ['--help'] );
 
-    ok($stderr eq '', "$script_name --help: no errors");
+    is($stderr, '', "$script_name --help: no errors");
     ok($stdout =~ m{usage:}ix, "$script_name --help: stdout =~ 'usage:...''");
 };
 
@@ -64,7 +59,7 @@ do {
     my ( $result, $stdout, $stderr ) = run_script($script_name, [-c => 'blah blah'] );
 
     ok($stderr =~ m{unrecognised \s command: \s blah}ixs, "$script_name -c '<invalid command>': error as expected");
-    ok($stdout eq '', "$script_name -c '<invalid command>': no output");
+    is($stdout, '', "$script_name -c '<invalid command>': no output");
 };
 
 do {
@@ -74,7 +69,7 @@ do {
 
     my ($result, $stdout, $stderr) = run_script ($script_name, [-c => 'describe user']);
 
-    ok($stderr eq '', "$script_name -c 'describe user': no errors");
+    is($stderr, '', "$script_name -c 'describe user': no errors");
     ok($stdout =~ m{user: \s+ Elive::Entity::User .* userId \s+ : \s+ pkey \s+ Str}ixs, "$script_name -c 'describe user': looks like dump of users entity");
 
 };
@@ -87,7 +82,7 @@ do {
     my ( $result, $stdout, $stderr ) = run_script($script_name, [-c => 'describe crud'] );
 
     ok($stderr =~ m{unknown \s+ entity: \s+ crud}ix, "$script_name: describe <unknown> error");
-    ok($stdout eq '', "$script_name: describe <unknown> error - no output");
+    is($stdout, '', "$script_name: describe <unknown> error - no output");
 };
 
 SKIP: {
@@ -127,6 +122,7 @@ SKIP: {
 	#
 	# simple query on server details - yaml dump of output
 	#
+
 	my ( $result, $stdout, $stderr ) = run_script(
 	    $script_name,
 	    [$url,

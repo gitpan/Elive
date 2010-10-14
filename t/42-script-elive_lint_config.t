@@ -13,15 +13,10 @@ if ( not $ENV{TEST_AUTHOR} ) {
     plan( skip_all => $msg );
 }
 
-eval "use Test::Script::Run";
+eval "use Test::Script::Run 0.04";
 
 if ( $EVAL_ERROR ) {
     my $msg = 'Test::Script::Run required to run scripts';
-    plan( skip_all => $msg );
-}
-
-unless (${Test::Script::Run::VERSION} >= '0.04') {
-    my $msg = "Test::Script::Run version (${Test::Script::Run::VERSION} < 0.04)";
     plan( skip_all => $msg );
 }
 
@@ -32,15 +27,15 @@ plan(tests => 4);
 my $script_name = 'elive_lint_config';
 
 #
-#
 # try running script with --help
 #
 
 do {
     my ( $result, $stdout, $stderr ) = run_script($script_name, ['--help'] );
-    ok($stderr eq '', "$script_name --help: stderr empty");
+    is($stderr, '', "$script_name --help: stderr empty");
     ok($stdout =~ m{usage:}ix, "$script_name --help: stdout =~ 'usage:...''");
 };
+
 #
 # try with invalid option
 #

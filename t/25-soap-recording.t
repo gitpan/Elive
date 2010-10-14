@@ -1,18 +1,17 @@
 #!perl
 use warnings; use strict;
 use Test::Builder;
-use Test::More tests => 21;
+use Test::More tests => 18;
 use Test::Exception;
 
 use lib '.';
 use t::Elive;
 
-BEGIN {
-    use_ok('Elive');
-    use_ok( 'Elive::Connection' );
-    use_ok( 'Elive::Entity::Recording' );
-    use_ok( 'Elive::Entity::Meeting' );
-};
+use Elive;
+use Elive::Connection;
+use Elive::Entity::Recording;
+use Elive::Entity::Meeting;
+use XML::Simple;
 
 my $class = 'Elive::Entity::Recording';
 
@@ -69,8 +68,7 @@ SKIP: {
     my %result = t::Elive->test_connection(only => 'real');
     my $auth = $result{auth};
 
-    skip ($result{reason} || 'skipping live tests',
-	15)
+    skip ($result{reason} || 'skipping live tests', 16)
 	unless $auth;
 
     my $connection_class = $result{class};
@@ -98,8 +96,8 @@ SKIP: {
 	);
 
     isa_ok($recording, $class, 'uploaded recording');
-    ok ($recording->recordingId eq $recording_id, 'uploaded recording id as expected');
-    ok($recording->roomName eq $room_name,'uploaded recording name as expected');
+    is($recording->recordingId, $recording_id, 'uploaded recording id as expected');
+    is($recording->roomName, $room_name,'uploaded recording name as expected');
 
     my $recordings = Elive::Entity::Recording->list;
 
@@ -115,7 +113,7 @@ SKIP: {
        sprintf('download has expected size %d bytes', length($data[0])),
 	);
 
-    ok($data_download eq $data[0], 'downloaded data matches upload');
+    is($data_download, $data[0], 'downloaded data matches upload');
 
     my $recordingJNLP;
 
@@ -128,6 +126,7 @@ SKIP: {
 	);
 
     ok($recordingJNLP && !ref($recordingJNLP), 'got recording JNLP');
+    lives_ok(sub {XMLin($recordingJNLP)}, 'JNLP is valid XML (XHTML)');
     ok(my $web_url = $recording->web_url, 'got recording web_url()');
 		
     $recording = undef;

@@ -1,16 +1,21 @@
 package Elive::Connection;
 use warnings; use strict;
 
+use Carp;
 use Class::Accessor;
 use Class::Data::Inheritable;
+use File::Spec::Unix;
 use HTML::Entities;
 use Scalar::Util;
+require SOAP::Lite;
+use URI;
+use URI::Escape qw{};
 
-use base qw{Class::Accessor};
+use base qw{Class::Accessor Class::Data::Inheritable};
 
 use Elive;
-use Elive::Entity;
 use Elive::Util;
+use Elive::Entity;
 use Elive::Entity::User;
 use Elive::Entity::ServerDetails;
 
@@ -32,31 +37,14 @@ have multiple connections:
 
     my $connection1
             = Elive::Connection->connect('http://someserver.com/site1',
-                                        'someUser', 'somePass');
+                                        'user1' => 'pass1');
 
     my $connection2
-            = Elive::Connection->connect('http://someserver.com/site2',
-                                         'anotherUser', 'anotherPass');
-
-All entity constructor and retrieval methods support an optional connection
-parameter. For example:
-
-     my $user = Entity::User->retrieve(
-                     [userId => 123456789000],
-                     connection => $connection1,
-                    );
-
-The C<connection> option can be used on all of the following entity methods:
-C<create>, C<insert>, C<list> and C<retrieve>.
+            = Elive::Connection->connect('http://user2:pass2@someserver.com/site2');
 
 =cut
 
-require SOAP::Lite;
-use URI;
-use File::Spec::Unix;
-use HTML::Entities;
-
-__PACKAGE__->mk_accessors( qw{url user pass soap _login _server_details} );
+__PACKAGE__->mk_accessors( qw{url user pass _soap debug type} );
 
 =head1 METHODS
 
@@ -64,24 +52,79 @@ __PACKAGE__->mk_accessors( qw{url user pass soap _login _server_details} );
 
 =head2 connect
 
-    my $ec = Elive::Connection->connect('http://someserver.com/test',
-                                        'user1', 'pass1', debug => 1);
+    my $sdk_c1 = Elive::Connection->connect('http://someserver.com/test',
+                                        'user1', 'pass1', debug => 1,
+                                        type => 'SDK',
+    );
 
-    my $url = $ec->url;   # should be 'http://someserver.com/test'
+    my $url1 = $sdk_c1->url;   #  'http://someserver.com/test'
 
-Establishes a logical SOAP connection. Retrieves the login user, to verify
-connectivity and authentication details.
+    my $sdk_c2 =  Elive::Connection->connect('http://user2:pass2@someserver.com/test', undef, undef, type => 'SDK);
+    my $url2 = $sdk_c2->url;   #  'http://someserver.com/test'
+
+Establishes a SOAP connection. Possible types are: SDK (L<Elive::Connection::SDK>), or 'API' (L<Elive::Connection::SDK>).
 
 =cut
 
 sub connect {
     my ($class, $url, $user, $pass, %opt) = @_;
 
+    my $type = $opt{type} || 'SDK';
+
+    my $connection_class = "Elive::Connection::${type}";
+
+    eval "require ${connection_class}";
+    die "unable to require ${connection_class}: $@"
+	if $@;
+
+    my $connection = $connection_class->connect($url, $user, $pass, %opt);
+
+    return $connection;
+}
+
+sub _connect {
+    my ($class, $url, $user, $pass, %opt) = @_;
+
+    my $debug = $opt{debug}||0;
+
     $url =~ s{/$}{}x;
 
     my $uri_obj = URI->new($url, 'http');
+    my $userinfo = $uri_obj->userinfo;
+
+    if ($userinfo) {
+
+	#
+	# extract and remove any credentials from the url
+	#
+
+	my ($uri_user, $uri_pass) = split(':',$userinfo, 2);
+
+	if ($uri_user) {
+	    if ($user && $user ne $uri_user) {
+		carp 'ignoring user in URI scheme - overridden';
+	    }
+	    else {
+		$user = URI::Escape::uri_unescape($uri_user);
+	    }
+	}
+
+	if ($uri_pass) {
+	    if ($pass && $pass ne $uri_pass) {
+		carp 'ignoring pass in URI scheme - overridden';
+	    }
+	    else {
+		$pass = URI::Escape::uri_unescape($uri_pass);
+	    }
+	}
+    }
+    else {
+	warn "no credentials in url: $url" if $debug;
+    }
 
     my $uri_path = $uri_obj->path;
+
+    $pass = '' unless defined $pass;
 
     my @path = File::Spec::Unix->splitdir($uri_path);
 
@@ -91,23 +134,32 @@ sub connect {
     pop (@path)
 	if (@path && $path[-1] eq 'webservice.event');
 
+    #
+    # normalise the connection url by removing suffixes. The following
+    # all reduce to http://mysite/myinst:
+    # -- http://mysite/myinst/webservice.event
+    # -- http://mysite/myinst/v2
+    # -- http://mysite/myinst/v2/webservice.event
+    # -- http://mysite/myinst/default
+    # -- http://mysite/myinst/default/webservice.event
+    #
+    # there's some ambiguity, they've named an instance v1 ... v9 - yikes!
+    #
+
+    if (@path && $path[-1] =~ m{^v(\d+)$}) {
+	croak "unsupported standard bridge version v${1}, endpoint path: ". File::Spec::Unix->catdir(@path, 'webservice.event')
+	    unless $1 == 2;
+	pop(@path);
+    }
+
     $uri_obj->path(File::Spec::Unix->catdir(@path));
+
     my $restful_url = $uri_obj->as_string;
 
-    $uri_obj->path(File::Spec::Unix->catdir(@path, 'webservice.event'));
-    my $soap_url = $uri_obj->as_string;
-
-    my $debug = $opt{debug}||0;
-
-    warn "connecting to ".$soap_url
-	if ($debug);
-
-    SOAP::Lite::import($debug >= 3
-		       ? (+trace => 'debug')
-		       : ()
-	);
-
-    my $soap = SOAP::Lite->new(proxy => $soap_url );
+    #
+    # ugly
+    #
+    $restful_url =~ s{\Q${userinfo}\E\@}{} if $userinfo;
 
     my $self = {};
     bless $self, $class;
@@ -115,29 +167,118 @@ sub connect {
     $self->url($restful_url);
     $self->user($user);
     $self->pass($pass);
-    $self->soap($soap);
+    $self->debug($debug);
 
     return $self
 }
 
-=head2 disconnect
+sub _check_for_errors {
+    my $class = shift;
+    my $som = shift;
 
-Closes a connection.
+    croak "No response from server"
+	unless $som;
+
+    croak $som->fault->{ faultstring } if ($som->fault);
+
+    my $result = $som->result;
+    my @paramsout = $som->paramsout;
+
+    warn YAML::Dump({result => $result, paramsout => \@paramsout})
+	if ($class->debug);
+
+    my @results = ($result, @paramsout);
+
+    foreach my $result (@results) {
+	next unless Scalar::Util::reftype($result);
+    
+	#
+	# Look for Elluminate-specific errors
+	#
+	if ($result->{Code}
+	    && (my $code = $result->{Code}{Value})) {
+
+	    #
+	    # Elluminate error!
+	    #
+	
+	    my $reason = $result->{Reason}{Text};
+
+	    my $trace = $result->{Detail}{Stack}{Trace};
+	    my @stacktrace;
+	    if ($trace) {
+		@stacktrace = (Elive::Util::_reftype($trace) eq 'ARRAY'
+			       ? @$trace
+			       : $trace);
+
+	    }
+
+	    my %seen;
+
+	    my @error = grep {defined($_) && !$seen{$_}++} ($code, $reason, @stacktrace);
+	    Carp::croak join(' ', @error) || YAML::Dump($result);
+	}
+    }
+}
+
+=head2 check_command
+
+    my $command1 = Elive->check_command([qw{getUser listUser}])
+    my $command2 = Elive->check_command(deleteUser => 'd')
+
+Find the first known command in the list. Raise an error if it's unknown;
+
+See also: elive_lint_config.
 
 =cut
 
-sub disconnect {
-    my $self = shift;
+sub check_command {
+    my $class = shift;
+    my $commands = shift;
+    my $crud = shift; #create, read, update or delete
 
-    $self->_server_details(undef);
-    $self->_login(undef);
+    $commands = [$commands]
+	unless Elive::Util::_reftype($commands) eq 'ARRAY';
 
-    return;
+    my $usage = "usage: \$class->check_command(\$name[,'c'|'r'|'u'|'d'])";
+    die $usage unless @$commands && $commands->[0];
+
+    my $known_commands = $class->known_commands;
+
+    die "no known commands for class: $class"
+	unless $known_commands && (keys %{$known_commands});
+
+    my ($command) = grep {exists $known_commands->{$_}} @$commands;
+
+    croak "Unknown command(s): @{$commands}"
+	unless $command;
+
+    if ($crud) {
+	$crud = lc(substr($crud,0,1));
+	die $usage
+	    unless $crud =~ m{^[c|r|u|d]$}xi;
+
+	my $command_type = $known_commands->{$command};
+	die "misconfigured command: $command"
+	    unless $command_type &&  $command_type  =~ m{^[c|r|u|d]+$}xi;
+
+	die "command $command. Type mismatch. Expected $crud, found $command_type"
+	    unless ($crud =~ m{[$command_type]}i);
+    }
+
+    return $command;
 }
+
+=head2 known_commands
+
+Returns an array of hash-value pairs for all Elluminate I<Live!> commands
+required by Elive. This list is cross-checked by the script elive_lint_config. 
+
+=cut
 
 =head2 call
 
-    my $som = $ec->call('listUsers', filter => '(givenName like "john*")')
+    my $som = $self->call( $cmd, %params );
 
 Performs an Elluminate SOAP method call. Returns the response as a
 SOAP::SOM object.
@@ -147,17 +288,9 @@ SOAP::SOM object.
 sub call {
     my ($self, $cmd, %params) = @_;
 
-    $params{adapter} ||= 'default';
+    $cmd = $self->check_command($cmd);
 
-    my @soap_params = (
-	(SOAP::Data
-	 ->name('request')
-	 ->uri('http://www.soapware.org')
-	 ->prefix('m')
-	 ->value('')),
-	 SOAP::Header->type(xml => $self->_soap_header_xml()),
-	 SOAP::Data->name('command')->value($cmd),
-	);
+    my @soap_params = $self->_preamble($cmd);
 
     foreach my $name (keys %params) {
 
@@ -177,57 +310,15 @@ sub call {
     return $som;
 }
 
-=head2 login
+=head2 disconnect
 
-Returns the login user as an object of type L<Elive::Entity::User>.
-
-=cut
-
-sub login {
-    my ($self) = @_;
-
-    my $login_entity = $self->_login;
-
-    unless ($login_entity) {
-
-	my $username = $self->user
-	    or return;
-
-	$login_entity = Elive::Entity::User->get_by_loginName($username,
-	    connection => $self)
-	    or die "unable to get login user: $username\n";
-
-	$self->_login($login_entity);
-    }
-
-    return $login_entity;
-}
-
-=head2 server_details
-
-Returns the server details as an object of type L<Elive::Entity::ServerDetails>.
+Closes a connection.
 
 =cut
 
-sub server_details {
+sub disconnect {
     my $self = shift;
-
-    my $server_details = $self->_server_details;
-
-    unless ($server_details) {
-
-	my $server_details_list = Elive::Entity::ServerDetails->list(connection => $self);
-
-	die "unable to get server details\n"
-	    unless (Elive::Util::_reftype($server_details_list) eq 'ARRAY'
-		    && $server_details_list->[0]);
-
-	$server_details = ($server_details_list->[0]);
-
-	$self->_server_details($server_details);
-    }
-
-    return $server_details;
+    return;
 }
 
 =head2 url
@@ -239,34 +330,6 @@ Returns a restful url for the connection.
 
 =cut
 
-=head2 soap
-
-    my $soap_lite_obj = $connection->soap;
-
-Returns the underlying L<SOAP::Lite> object for the connection.
-
-=cut
-
-sub _soap_header_xml {
-
-    my $self = shift;
-
-    die "Not logged in"
-	unless ($self->user);
-
-    my @user_auth =  (map {HTML::Entities::encode_entities( $_ )}
-		      ($self->user, $self->pass));
-
-    return sprintf (<<'EOD', @user_auth);
-    <h:BasicAuth
-      xmlns:h="http://soap-authentication.org/basic/2001/10/"
-    soap:mustUnderstand="1">
-    <Name>%s</Name>
-    <Password>%s</Password>
-    </h:BasicAuth>
-EOD
-};
-
 sub DESTROY {
     shift->disconnect;
     return;
@@ -274,7 +337,7 @@ sub DESTROY {
 
 =head1 SEE ALSO
 
-L<SOAP::Lite>
+L<Elive::Connection::SDK> L<Elive::Connection::API> L<SOAP::Lite>
 
 =cut
 
