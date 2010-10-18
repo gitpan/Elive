@@ -47,8 +47,11 @@ Elive::Entity::Group - Elluminate Group entity instance class
 These are used to maintain user groups for general use. In particular,
 for group selection of meeting participants.
 
-The C<members> property contains an array of user IDs.
+The C<members> property contains the group members as an array of user IDs.
 
+If the a site is configured for LDAP, groups are mapped to LDAP groups. 
+Group access becomes read-only. The affected methods are: C<insert>, C<update>,
+and C<delete>.
 =cut
 
 =head1 METHODS

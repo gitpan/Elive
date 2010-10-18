@@ -14,7 +14,6 @@ inc/Module/Install/WriteAll.pm
 lib/Elive.pm
 lib/Elive/Array.pm
 lib/Elive/Connection.pm
-lib/Elive/Connection/API.pm
 lib/Elive/Connection/SDK.pm
 lib/Elive/DAO.pm
 lib/Elive/DAO/Singleton.pm
@@ -23,7 +22,6 @@ lib/Elive/Entity/Group.pm
 lib/Elive/Entity/Meeting.pm
 lib/Elive/Entity/MeetingParameters.pm
 lib/Elive/Entity/ParticipantList.pm
-lib/Elive/Entity/ParticipantList.pm.bak
 lib/Elive/Entity/ParticipantList/Participant.pm
 lib/Elive/Entity/ParticipantList/Participants.pm
 lib/Elive/Entity/Preload.pm

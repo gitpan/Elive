@@ -59,7 +59,13 @@ coerce 'Elive::Entity::User' => from 'Str'
 
 =head1 NAME
 
-    Elive::Entity::User - Elluminate Users entity class
+Elive::Entity::User - Elluminate Users entity class
+
+=cut
+
+=head1 DESCRIPTION
+
+These are used to query and maintain information on regisisted Elluminate I<Live!> users.
 
 =cut
 
@@ -212,7 +218,8 @@ sub change_password {
 
 =head2 delete
 
-    $user_obj->delete([force => 1]);
+    $user_obj->delete();
+    $admin_user_obj->delete(force => 1);
 
 Delete user objects. As a safeguard, you need to pass C<force =E<gt> 1> to delete
 system administrator accounts, or the login user.
@@ -246,8 +253,8 @@ Elluminate I<Live!> can be configured to use LDAP for user management and
 authentication.
 
 If LDAP is in use, the fetch and retrieve methods will continue to operate
-via the Elluminate SOAP command layer. However use access becomes read-only.
-The affected methods are: insert, update, delete and change_password.
+via the Elluminate SOAP command layer. User access becomes read-only.
+The affected methods are: C<insert>, C<update>, C<delete> and C<change_password>.
 
 =cut
 
