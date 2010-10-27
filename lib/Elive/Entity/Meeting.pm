@@ -40,6 +40,13 @@ __PACKAGE__->params(
     endDate => 'HiResDate',
     );
 
+# help out elive_query; expansion of 'select ** from meeting...'
+__PACKAGE__->derivable(
+    participants => '_participants',
+    recordings => 'list_recordings',
+    preloads => 'list_preloads',
+    url => 'web_url');
+
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
 __PACKAGE__->primary_key('meetingId');
 
@@ -429,7 +436,7 @@ page, or send email attachments  with mime type C<application/x-java-jnlp-file>.
 Under Windows, and other desktops, files are usually saved  with extension
 C<JNLP>.
 
-See also L<http://en.wikipedia.org/wiki/JNLP>.
+See also L<http://wikipedia.org/wiki/JNLP>.
 
 =cut
 
@@ -573,6 +580,7 @@ sub server_parameters {
 
     my $meeting = Elive::Entity::Meeting->retrieve([$meeting_id]);
     my $participant_list = $meeting->participant_list;
+    my $participants = $meeting->participants;
 
 Utility method to return the participant_list associated with a meeting.
 See also L<Elive::Entity::ParticipantList>.
@@ -588,6 +596,13 @@ sub participant_list {
 		   connection => $self->connection,
 		   @args,
 	);
+}
+
+#
+# just to help out elive_query
+#
+sub _participants {
+    return (my $self = shift)->participant_list->participants;
 }
 
 =head2 list_preloads

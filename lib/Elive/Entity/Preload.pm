@@ -14,26 +14,6 @@ use File::Basename qw{};
 
 use Carp;
 
-=head1 NAME
-
-Elive::Entity::Preload - Elluminate Preload instance class
-
-=head2 DESCRIPTION
-
-This is the entity class for meeting preloads.
-
-    my $preloads = Elive::Entity::Preload->list(
-                        filter =>  'mimeType=application/x-shockwave-flash',
-                    );
-
-    my $preload = Elive::Entity::Preload->retrieve([$preload_id]);
-
-    my $type = $preload->type;
-
-There are three possible types of preloads: media, plan and whiteboard.
-
-=cut
-
 __PACKAGE__->entity_name('Preload');
 __PACKAGE__->collection_name('Preloads');
 
@@ -72,6 +52,26 @@ has 'data' => (is => 'rw', isa => 'Str',
 has 'isProtected' => (is => 'rw', isa => 'Bool');
 has 'isDataAvailable' => (is => 'rw', isa => 'Bool');
 
+
+=head1 NAME
+
+Elive::Entity::Preload - Elluminate Preload instance class
+
+=head2 DESCRIPTION
+
+This is the entity class for meeting preloads.
+
+    my $preloads = Elive::Entity::Preload->list(
+                        filter =>  'mimeType=application/x-shockwave-flash',
+                    );
+
+    my $preload = Elive::Entity::Preload->retrieve([$preload_id]);
+
+    my $type = $preload->type;
+
+There are three possible types of preloads: media, plan and whiteboard.
+
+=cut
 
 =head1 METHODS
 

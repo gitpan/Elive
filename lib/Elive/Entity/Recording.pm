@@ -8,6 +8,7 @@ use Elive::Util;
 
 __PACKAGE__->entity_name('Recording');
 __PACKAGE__->collection_name('Recordings');
+__PACKAGE__->derivable(url => 'web_url');
 
 has 'recordingId' => (is => 'rw', isa => 'Str', required => 1);
 __PACKAGE__->primary_key('recordingId');
@@ -258,7 +259,7 @@ Preferences E<gt>E<gt> Session Access E<gt>E<gt> Lock Recording Playback to Clie
 
 It represents a fixed client IP address for launching the recording playback.
 
-See also L<http://en.wikipedia.org/wiki/JNLP>.
+See also L<http://wikipedia.org/wiki/JNLP>.
 
 =cut
 

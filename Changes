@@ -1,5 +1,19 @@
 Revision history for Elive
 
+0.75    28th October 2010
+        elive_query: Extended the range of data that can be selected for
+        meetings. This includes data for meeting parameters and server
+        parameters. Also now selectable are associated participants,
+        recordings and preloads.
+
+	    select name,participants,url from meeting where id = 1234567890123
+
+0.74    18th October 2010
+
+        Bug Fixes:
+        - Elive::Entity::Preload - Make sure that the preload has an 'ownerId'
+          defined. It seems to be required for preloads to function properly.
+
 0.74_2  14th October 2010
 
         Support for LDAP groups in participant lists
@@ -11,8 +25,6 @@ Revision history for Elive
         Bug fixes:
         - Elive::Entity::Meeting: Added 'adapter' property. Interesting
           vlaues include: 'default' & 'standardv2'.
-        - Elive::Entity::Preload - Make sure that the preload has an
-          'ownerId' defined. Seems to require it.
 
         Other Enhancements:
         - General support for credentials embedded in urls, E.g:
