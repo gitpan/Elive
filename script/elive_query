@@ -7,18 +7,6 @@ use Getopt::Long qw{};
 
 use Elive;
 use Elive::Util;
-use Elive::Entity;
-use Elive::Entity::Group;
-use Elive::Entity::Meeting;
-use Elive::Entity::MeetingParameters;
-use Elive::Entity::ParticipantList;
-use Elive::Entity::Preload;
-use Elive::Entity::Recording;
-use Elive::Entity::Role;
-use Elive::Entity::Report;
-use Elive::Entity::ServerDetails;
-use Elive::Entity::ServerParameters;
-use Elive::Entity::User; 
 
 use Term::ReadLine;
 use Pod::Usage;
@@ -37,12 +25,14 @@ elive_query
 
   elive_query   http://myserver.com/my-site[:port]
 
-    -user someuser              # server login user
-    -pass somepass              # server login password
-    -debug=n                    # 1=some, 2=verbose, 3=verbose + soap
-    -dump=yaml                  # dump format
-    -? -help                    # obtain help
-    -v -version                 # print Elive version
+    -user someuser          # server login user
+    -pass somepass          # server login password
+    -c 'select ....'        # execute the given command(s)
+    -debug=n                # 1=some, 2=verbose, 3=verbose + soap
+    -dump=yaml              # dump format
+    -? -help                # obtain help
+    -v -version             # print Elive version
+    -adapter type           # E.g. -adapter standardv2 (Elive::StandardV2)
 
 =head1 DESCRIPTION
 
@@ -100,54 +90,80 @@ sub main {
     local(@ARGV) = @_;
 
     our $elive_version = ${Elive::VERSION};
-    our %entities = %{Elive::Entity->entities};
     our %entity_collections;
-    our $term = Term::ReadLine->new('elive shell');
-    our $is_tty = IO::Interactive::is_interactive();
+    #
+    # this may barf if /dev/tty can't be opened. E.g. when exxecuting from cron
+    our $is_tty = eval { IO::Interactive::is_interactive() };
 
-    foreach (keys %entities) {
-	#
-	# Just want database mapped entities. Omit nested structures
-	#
-	unless ($entities{$_}->isa('Elive::Entity')
-		&& $entities{$_}->primary_key) {
-	    delete $entities{$_};
-	    next;
-	}
-	#
-	# accept plurals, e.g. 'select * from user' vs 'select * from users'
-	#
-	if (my $collection_name = $entities{$_}->collection_name) {
-	    $entity_collections{lcfirst($collection_name)} = $entities{$_};
-	}
+    our $term;
+    if ($is_tty) {
+	$term = eval{ Term::ReadLine->new('elive shell') }
     }
 
     my $prompt = "elive> ";
     our $connection;
     my %options;
 
+    our $adapter_class;
+
     do {
 	(my $url, %options) = _getopt();
+
+	my $adapter = $options{adapter} || 'default';
+	$adapter_class = {default => 'Elive::Entity',
+			  standardv2 => 'Elive::StandardV2'}->{$adapter};
+	$adapter_class ||= $adapter;
+	
+	eval "require $adapter_class";
+	die $@ if $@;
 
 	our $debug = $options{debug};
 	Elive->debug( $debug );
 
-	$connection = _connect($url, %options)
+	$connection = _connect($adapter_class => $url, %options)
 	    if $url;
     };
+
+    warn "adapter class: $adapter_class\n" if Elive->debug;
+    our @data_classes = $adapter_class->data_classes;
+    our %entities;
+
+    foreach my $class (@data_classes) {
+	#
+	# Make sure were' dealing with well formed DAO objects
+	#
+	eval "require $class";
+	die $@ if $@;
+
+	unless (eval{$class->isa('Elive::DAO')} && $class->entity_name) {
+	    warn "Omitting non DAO class: $class";
+	    next;
+	}
+
+	$entities{ lcfirst $class->entity_name } = $class;
+	#
+	# accept plurals, e.g. 'select * from user' vs 'select * from users'
+	#
+	if (my $collection_name = $class->collection_name) {
+	    $entity_collections{lcfirst($collection_name)} = $class;
+	}
+    }
 
     my $server_version_str = '';
 
     if ($connection) {
-	my $server_version =  Elive->server_details->version
+	my $server_version =  $connection->version
 	    or warn "unable to get elluminate version\n";
 
 	$server_version_str  = "(Elluminate Live! $server_version) "
 	    if $server_version;
     }
 
+    my @command_opts = @{ $options{command} || [] };
+    my $has_command_opts = @command_opts;
+
     print "Elive query $elive_version (c) 2009 - 2010 ${server_version_str}. Type 'help' for help\n"
-	if $is_tty && !defined $options{command};
+	if $is_tty && !$has_command_opts;
 
     my $cmd;
     my $keyw;
@@ -155,16 +171,16 @@ sub main {
 
     while (($keyw||'') ne 'quit') {
 
-	if (defined $options{command}) {
-	    $cmd = $options{command};
+	if ($has_command_opts) {
+	    $cmd = shift( @command_opts );
 	}
 	else {
-	    $cmd = $is_tty? $term->readline($prompt): <STDIN>;
+	    $cmd = $is_tty && $term? $term->readline($prompt): <STDIN>;
 	}
 
-	last unless $cmd;
+	last unless defined $cmd;
 
-	$term->addhistory($cmd);
+	$term->addhistory($cmd) if $term;
 	#
 	# strip leading white-space & trailing white-space + semicolon
 	#
@@ -193,7 +209,7 @@ sub main {
 		    $url ||= Elive::Util::prompt("Url ('http://...'): ");
 
 		    my $new_connection
-			= _connect($url,
+			= _connect($adapter_class => $url,
 				   username => $user,
 				   %options);
 
@@ -256,8 +272,11 @@ sub main {
 					    || $entity_collections{$entity});
 
 
-			$entity_class = 'Elive::script::elive_query::ViewMeeting'
-			    if $entity_class eq 'Elive::Entity::Meeting';
+			if ($entity_class eq 'Elive::Entity::Meeting') {
+			    require Elive::script::elive_query::ViewMeeting;
+			    $entity_class = 'Elive::script::elive_query::ViewMeeting';
+			    $entity_class->_init;
+			}
 
 			if (!$entity_class) {
 			    print STDERR "Unknown entity: $entity\n";
@@ -294,10 +313,11 @@ sub main {
 			    }
 			    else {
 				_select($entity_class, \@props,
+					connection => $connection,
 					filter => $filter,
 					hide_undef => $hide_undef,
 					dump => $options{dump},
-					); 
+				    ); 
 			    }
 			}
 		    }
@@ -309,13 +329,11 @@ sub main {
 		elsif ($keyw !~ m{^(quit)$}x) {
 		    print STDERR "unrecognised command: $keyw, type 'help' for help\n";
 		}
-	}
+	    }
 	    else {
 		print STDERR "unrecognised command  - type 'help' for help\n";
 	    }
 	}
-
-	last if defined $options{command};
     }
 
     Elive->disconnect;
@@ -391,6 +409,8 @@ sub _select {
 
     my $filter = $opt{filter};
     my $hide_undef = $opt{hide_undef};
+    my $connection = $opt{connection}
+    or die "not copnnected";
 
     my $property_types = $entity_class->property_types;
     my %derivable = $entity_class->derivable;
@@ -431,7 +451,7 @@ sub _select {
 	if (my ($fld, $val) = ($filter =~ m{^ (\w+) \s* = \s* ([\w_\-\@\!\#\$\%\^\&\.\+]+) \s* $}x)) {
 	    my $type = $property_types->{$fld} || '';
 	    
-	    if ($fld eq $pkey || $fld eq 'id') {
+	    if ($pkey && ($fld eq $pkey || $fld eq 'id')) {
 		$id = $val;
 	    }
 	}
@@ -442,10 +462,10 @@ sub _select {
 
     eval {
 	if ($id) {
-	    $rows =  [grep {$_} $entity_class->retrieve([$id])];
+	    $rows =  [grep {$_} $entity_class->retrieve([$id], connection => $connection)];
 	}
 	else {
-	    $rows = $entity_class->list(filter => $filter);
+	    $rows = $entity_class->list(filter => $filter, connection => $connection);
 	}
     };
 
@@ -456,8 +476,8 @@ sub _select {
 	print "No results.\n";
     }
     elsif ($opt{dump} && $opt{dump} =~ /^(yaml)$/i) {
-	foreach (@$rows) {
-	    print YAML::Dump({$entity_name => _fetch_row_href($props, \%derivable, $_)});
+	foreach my $row (@$rows) {
+	    print YAML::Dump({$entity_name => _fetch_row_href($props, \%derivable, $row)});
 	}
     }
     else {
@@ -571,9 +591,10 @@ sub _getopt {
     Getopt::Long::GetOptions(\%options,
 			     'username|user=s',
 			     'password|pass=s',
-			     'command|c=s',
+			     'command|c=s@',
                              'dump=s',
 			     'debug=i',
+			     'adapter=s',
 			     'help|?',
 			     'version|v',
 			     'help|?'
@@ -596,7 +617,7 @@ sub _getopt {
 }
 
 sub _connect {
-    my ($url, %options) = @_;
+    my ($adapter_class, $url, %options) = @_;
 
     my $username = $options{username};
     my $password = $options{password};
@@ -622,7 +643,7 @@ sub _connect {
 
     print STDERR "connecting to $url...";
     my $connection = eval {
-	Elive->connect($url, $username, $password);
+	$adapter_class->connect($url, $username, $password);
     };
 
     if ($@) {
@@ -635,79 +656,5 @@ sub _connect {
 }
 
 ########################################################################
-
-package Elive::script::elive_query::ViewMeeting;
-use Mouse;
-
-use Elive::Entity::Meeting;
-use Elive::Entity::ServerParameters;
-use Elive::Entity::MeetingParameters;
-
-use base 'Elive::Entity::Meeting';
-
-#
-# dummy extended object. Composite of Meeting ServerParameters and
-# Meeting parameters objects
-#
-
-sub properties {
-    return Elive::Entity::Meeting->properties;
-}
-
-sub property_types {
-    return Elive::Entity::Meeting->property_types
-}
-
-sub derivable {
-    my $class = shift;
-
-    my %derivable = (
-	Elive::Entity::Meeting->derivable,
-
-	(map {$_ => $_} Elive::Entity::ServerParameters->properties),
-	Elive::Entity::ServerParameters->derivable,
-
-	(map {$_ => $_} Elive::Entity::MeetingParameters->properties),
-	Elive::Entity::MeetingParameters->derivable,
-	);
-
-    return %derivable;
-}
-
-BEGIN {
-
-    my %delegates = (
-	'Elive::Entity::ServerParameters' => '_cache_server_parameters',
-	'Elive::Entity::MeetingParameters' => '_cache_meeting_parameters',
-	);
-
-    foreach my $delegate_class (sort keys %delegates) {
-
-	my $cache_accessor = $delegates{ $delegate_class };
-
-	my %methods = ($delegate_class->derivable,
-		       map {$_ => $_} $delegate_class->properties);
-
-	foreach my $alias (keys %methods) {
-
-	    next if $alias eq 'meetingId';
-	    my $method = $methods{$alias};
-
-	    my $delegate_subref = $delegate_class->can($method);
-
-	    no strict 'refs';
-
-	    my $subref = sub {
-		my $self = shift;
-
-		$self->{$cache_accessor} ||=  $delegate_class->retrieve( $self->meetingId, reuse => 1);
-	    
-		$self->{$cache_accessor}->$method(@_);
-	    };
-
-	    *{$alias} = $subref;
-	}
-    }
-}
 
 1;

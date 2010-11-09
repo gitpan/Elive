@@ -15,9 +15,6 @@ use base qw{Class::Accessor Class::Data::Inheritable};
 
 use Elive;
 use Elive::Util;
-use Elive::Entity;
-use Elive::Entity::User;
-use Elive::Entity::ServerDetails;
 
 =head1 NAME
 
@@ -228,6 +225,11 @@ sub check_command {
     my $class = shift;
     my $commands = shift;
     my $crud = shift; #create, read, update or delete
+    my $params = shift;
+
+    if (Elive::Util::_reftype($commands) eq 'CODE') {
+	$commands = $commands->($crud, $params);
+    }
 
     $commands = [$commands]
 	unless Elive::Util::_reftype($commands) eq 'ARRAY';
@@ -280,7 +282,7 @@ SOAP::SOM object.
 sub call {
     my ($self, $cmd, %params) = @_;
 
-    $cmd = $self->check_command($cmd);
+    $cmd = $self->check_command($cmd, undef, \%params);
 
     my @soap_params = $self->_preamble($cmd);
 

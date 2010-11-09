@@ -458,9 +458,6 @@ sub _readback_check {
 
     foreach my $row (@$rows) {
 
-	$row = $class->new($row)
-	    unless Scalar::Util::blessed($row);
-
 	my $property_types = $class->property_types;
 
 	foreach ($class->properties) {
@@ -473,10 +470,10 @@ sub _readback_check {
 		if ($class->_cmp_col($property_type,
 				     $write_val,  $read_val, %opt)) {
 
-		    warn YAML::Dump({read => $read_val, write => $write_val})
+		    warn YAML::Dump({read => $read_val, sent => $write_val})
 			if ($class->debug >= 2);
 
-		    croak "${class}: Update consistancy check failed on $_ (${property_type}), wrote:".Elive::Util::string($write_val, $property_type).", read-back:".Elive::Util::string($read_val, $property_type);
+		    croak "${class}: Update consistancy check failed on $_ (${property_type}), sent:".Elive::Util::string($write_val, $property_type).", read-back:".Elive::Util::string($read_val, $property_type);
 		}
 	    }
 	}
