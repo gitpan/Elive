@@ -23,6 +23,8 @@ no_index:
   directory:
     - inc
     - t
+recommends:
+  Term::ReadLine::Perl: 0
 requires:
   Carp: 0
   Class::Accessor: 0
@@ -43,7 +45,6 @@ requires:
   Storable: 0
   Term::ReadKey: 0
   Term::ReadLine: 0
-  Term::ReadLine::Perl: 0
   Time::Local: 0
   URI: 0
   URI::Escape: 0
@@ -53,4 +54,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://dwarring@elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 0.76
+version: 0.77

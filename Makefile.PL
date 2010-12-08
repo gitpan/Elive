@@ -33,7 +33,6 @@ requires(
     'Storable'                     => 0,
     'Term::ReadKey'                => 0,
     'Term::ReadLine'               => 0,
-    'Term::ReadLine::Perl'         => 0,  # fallback for elive_query
     'Time::Local'                  => 0,
     'URI'                          => 0,
     'URI::Escape'                  => 0,
@@ -42,7 +41,7 @@ requires(
     );
 
 recommends(
-
+    'Term::ReadLine::Perl'         => 0,  
     );
 
 test_requires (
