@@ -35,7 +35,6 @@ requires:
   Getopt::Long: 2.35
   HTML::Entities: 0
   IO::Interactive: 0
-  IO::Prompt: 0
   MIME::Base64: 0
   MIME::Types: 0
   Mouse: 0.81
@@ -54,4 +53,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://dwarring@elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 0.77
+version: 0.78

@@ -1,5 +1,9 @@
 Revision history for Elive
 
+0.78    8th December 2010
+        - Removed bogus dependency on IO::Prompt. Causing unneccessary
+          build problems on Windows.
+
 0.77    8th December 2010
         - Added tests on setting big meeting participant lists. Bug fixed
           in pending Elluminate 10.0.2 release.

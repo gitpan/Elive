@@ -23,7 +23,6 @@ requires(
     'Getopt::Long'                 => 2.35,  # for scripts
     'HTML::Entities'               => 0,
     'IO::Interactive'              => 0,
-    'IO::Prompt'                   => 0,
     'MIME::Types'                  => 0,
     'MIME::Base64'                 => 0,
     'Mouse'                        => 0.81,
