@@ -1,5 +1,9 @@
 Revision history for Elive
 
+0.79    21st January 2011
+        - bugfix to elive_query. Had silently broken 'select * ...' queries
+          around 0.76. Added tests to t/40-script-elive-query.t.
+
 0.78    8th December 2010
         - Removed bogus dependency on IO::Prompt. Causing unneccessary
           build problems on Windows.

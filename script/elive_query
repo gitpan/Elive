@@ -25,27 +25,27 @@ elive_query
 
   elive_query   http://myserver.com/my-site[:port]
 
-    -user someuser          # server login user
-    -pass somepass          # server login password
-    -c 'select ....'        # execute the given command(s)
+    -user someuser          # SDK/SOAP username
+    -pass somepass          # SDK/SOAP password
+    -c 'select ....'        # execute command(s), then exit
     -debug=n                # 1=some, 2=verbose, 3=verbose + soap
-    -dump=yaml              # dump format
+    -dump=yaml              # serialise results as YAML
     -? -help                # obtain help
     -v -version             # print Elive version
     -adapter type           # E.g. -adapter standardv2 (Elive::StandardV2)
 
 =head1 DESCRIPTION
 
-Simple read-only query shell for Elive. 
+Simple read-only query shell/REPL for Elive.
 
 =head2 Entity Data Queries
 
 This example script lets you do simple queries, in a vaguely SQL like manner.
 For example:
 
-    % elive_query -user admin http://myvclass.com/mysite
+    % elive_query -user admin http://myserver.com/mysite
     Password: ********
-    connecting to http://myvclass.com/mysite...ok
+    connecting to http://myserver.com/mysite...ok
     Elive query ... (Elluminate Live! ...)  (c) ... - type 'help' for help
 
     elive> select loginName,email,firstName,lastName,role from user where loginName like *m* 
@@ -56,7 +56,7 @@ For example:
 
     elive>
 
-=head2 Entity Metadata
+=head2 Describing Entities
 
 You can also use this script to describe Elive entity structures:
 
@@ -92,7 +92,7 @@ sub main {
     our $elive_version = ${Elive::VERSION};
     our %entity_collections;
     #
-    # this may barf if /dev/tty can't be opened. E.g. when exxecuting from cron
+    # this may barf if /dev/tty can't be opened. E.g. when executing from cron
     our $is_tty = eval { IO::Interactive::is_interactive() };
 
     our $term;
@@ -125,6 +125,13 @@ sub main {
     };
 
     warn "adapter class: $adapter_class\n" if Elive->debug;
+
+    if ($adapter_class eq 'Elive::Entity') {
+	# snick in our private classes
+	require Elive::script::elive_query::ViewMeeting;
+	Elive::script::elive_query::ViewMeeting->_init;
+    }
+
     our @data_classes = $adapter_class->data_classes;
     our %entities;
 
@@ -272,17 +279,15 @@ sub main {
 					    || $entity_collections{$entity});
 
 
-			if ($entity_class eq 'Elive::Entity::Meeting') {
-			    require Elive::script::elive_query::ViewMeeting;
-			    $entity_class = 'Elive::script::elive_query::ViewMeeting';
-			    $entity_class->_init;
-			}
-
 			if (!$entity_class) {
 			    print STDERR "Unknown entity: $entity\n";
 			    $valid = 0;
 			}
 			else {
+			    if ($entity_class eq 'Elive::Entity::Meeting') {
+				$entity_class = 'Elive::script::elive_query::ViewMeeting';
+			    }
+
 			    if (@props == 1 && $props[0] =~ m{^(\*)(\*)?(\??)$}x) {
 				#
 				# '*'  select all
