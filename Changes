@@ -1,5 +1,15 @@
 Revision history for Elive
 
+0.80    28th January 2011
+        - Elive::Entity::ParticipantList. Detect and catch the common
+          scenario of attempting to add unknown users. Now croaks with a
+          friendlier and easily caught error message:
+
+              "unable to add 7 of 35 participants as follows: user1 user2 ..."
+
+        - Eliminated remaining direct uses of Elive::Util::_freeze() function
+          with Elive::DAO::->_freeze() for consistancy.
+
 0.79    21st January 2011
         - bugfix to elive_query. Had silently broken 'select * ...' queries
           around 0.76. Added tests to t/40-script-elive-query.t.
@@ -11,8 +21,8 @@ Revision history for Elive
 0.77    8th December 2010
         - Added tests on setting big meeting participant lists. Bug fixed
           in pending Elluminate 10.0.2 release.
-        - Downgraded  Term::Readline::Perl dependency from required to
-          recommended. alternatives include Term::Readline::TTYtter
+        - Downgraded  Term::Readline::Perl dependency from 'required' to
+          'recommended'. alternatives include Term::Readline::TTYtter
 
 0.76    10th November 2010
         work on elive_query:
@@ -51,7 +61,7 @@ Revision history for Elive
 
         Bug fixes:
         - Elive::Entity::Meeting: Added 'adapter' property. Interesting
-          vlaues include: 'default' & 'standardv2'.
+          values include: 'default' & 'standardv2'.
 
         Other Enhancements:
         - General support for credentials embedded in urls, E.g:
