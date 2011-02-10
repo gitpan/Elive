@@ -51,18 +51,18 @@ sub _pack_data {
 
 	my $property = $property_types->{$prop};
 
-	my ($type, $is_array, $is_struct) = Elive::Util::parse_type( $property );
+	my ($type, $is_array, $is_struct, $_is_ref, $class) = Elive::Util::parse_type( $property );
 
 	for ($db_data{$prop}) {
 	    die "$class undefined property $prop"
 		unless defined;
 
+	    $_ = [split($class->separator, $_)]
+		if ($is_array && !ref);
+
 	    if ($is_struct) {
 		my ($adapter, $packed_data) = _pack_data($type, $_);
 		$_ = {$adapter => $packed_data};
-	    }
-	    else {
-		$_ = Elive::Util::_freeze($_, $is_array? $property: $type);
 	    }
 	}
     }

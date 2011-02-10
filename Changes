@@ -1,8 +1,31 @@
 Revision history for Elive
 
+0.82    10th February 2011
+        [I hadn't run t/26-soap-user.t and t/27-soap-group updates against a
+         live SOAP servive for a while :-| found some compatibility problems
+         between Elluminate 9.7 and 10.0.1.]
+
+        - Elive::Entity::User; to mirror SDK changes. The password was
+          previously handled seperately via the 'changePassword' command,
+          but is now a required field in the initial insert. Also tidied
+          up the update checks; introduced _safety_check() method for
+          consistancy.
+
+        - Elive::Entity::Group; update modifed to match change in SDK.
+          -- The separator character for has changed from ';' to ','.
+          -- Added new class Elive::Entity::Group::Members.
+          -- Group name now passed to 'updateGroup' command
+
+        - extended t/26-soap-user.t and t/27-soap-group. These may be enabled
+          by setting the following envoriment variables:
+            -- ELIVE_TEST_USER_UPDATES
+            -- ELIVE_TEST_GROUP_UPDATES
+	  These tests can only be run on a non-LDAP server. See README for
+	  details.
+
 0.81    4th February 2011
-        - Resolve aliases on entity insert and update. For example the following are now
-          equivalent:
+        - Resolve aliases on entity insert and update. For example the
+          following are now equivalent:
 
                 Elive::Entity::Meeting->insert({privateMeeting => 1, ...}); # use real attribute name
                 Elive::Entity::Meeting->insert({private => 1, ...}); # use alias name

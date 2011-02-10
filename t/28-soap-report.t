@@ -8,16 +8,17 @@ use t::Elive;
 
 use Elive;
 
-my $class = 'Elive::Entity::Report' ;
-use_ok($class);
+use XML::Simple;
+
+my $class = 'Elive::Entity::Report';
+use Elive::Entity::Report;
 
 SKIP: {
 
     my %result = t::Elive->test_connection(only => 'real');
     my $auth = $result{auth};
 
-    skip ($result{reason} || 'skipping live tests',
-	6)
+    skip ($result{reason} || 'skipping live tests', 7)
 	unless $auth;
 
     my $connection_class = $result{class};
@@ -35,7 +36,7 @@ SKIP: {
 	# a bit unexpected, because Elluminate comes with built in reports
 	#
         diag("** Hmmm, No reports on this server - skipping further report tests !!!?");
-        skip('No reports found!?', 4);
+        skip('No reports found!?', 5);
     };
 
    isa_ok($reports->[0], 'Elive::Entity::Report', 'reports[0]');
@@ -51,7 +52,8 @@ SKIP: {
    lives_ok (sub {$rpt = Elive::Entity::Report->retrieve([$report_id])},
                  'retrieve reports[0].id - lives');
 
-   ok($rpt->xml, 'reports[0].xml - populated');
+    ok($rpt->xml, 'reports[0].xml - populated');
+    lives_ok(sub {XMLin($rpt->xml)}, 'reports[0].xml is valid XML');
 
     Elive->disconnect;
 

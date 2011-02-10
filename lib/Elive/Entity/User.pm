@@ -23,7 +23,6 @@ has 'loginPassword' => (is => 'rw', isa => 'Str');
 
 has 'loginName' => (is => 'rw', isa => 'Str',
 		    documentation => 'login name - must be unique');
-__PACKAGE__->_alias(userName => 'loginName');
 		    
 has 'email' => (is => 'rw', isa => 'Str',
 		documentation => 'users email address');
@@ -127,22 +126,6 @@ Insert a new user
 
 =cut
 
-sub insert {
-    my ($class, $data_href, %opt) = @_;
-
-    my $self = $class->SUPER::insert( $data_href, %opt );
-
-    #
-    # seems we have to insert a record, then set the password
-    #
-    my $password = $data_href->{loginPassword};
-    if (defined $password and $password ne '') {
-	$self->change_password($password);
-    }
-
-    return $self;
-}
-
 =head2 update
 
     my $user_obj = Elive::Entity::user->retrieve([$user_id]);
@@ -162,32 +145,28 @@ As a safeguard, you'll need to pass C<force =E<gt> 1> to update:
 
 =cut
 
+sub _safety_check {
+    my ($self, %opt) = @_;
+
+    unless ($opt{force}) {
+
+	my $connection = $opt{connection} || $self->connection
+	    or die "Not connected";
+
+	die "Cowardly refusing to update SDK user"
+	    if $self->userId eq $connection->login->userId;
+
+	die "Cowardly refusing to update system admin account for ".$self->loginName.": (pass force => 1 to override)"
+	    if ($self->role->stringify <= 0);
+    }
+}
+
 sub update {
     my ($self, $data_href, %opt) = @_;
     my %update_data = %{$data_href || {}};
 
-    unless ($opt{force}) {
-	die "Cowardly refusing to update system admin account for ".$self->loginName.": (pass force => 1 to override)"
-	    if ($self->role->stringify <= 0);
-    }
-
-    $self->set( %update_data)
-	if (keys %update_data);
-    
-    #
-    # A password change requires special handling
-    #
-    my @changed = $self->is_changed;
-    my @changed1  = grep {$_ ne 'loginPassword'} @changed;
-    my $password_changed = @changed != @changed1;
-    my $password = delete $self->{loginPassword};
-
-    my $ret = $self->SUPER::update( undef, %opt, changed => \@changed1 );
-
-    $self->change_password($password)
-	if $password_changed;
-
-    return $ret;
+    $self->_safety_check(%opt);
+    return $self->SUPER::update( $data_href, %opt);
 }
 
 =head2 change_password
@@ -207,11 +186,13 @@ This is equivalent to:
 sub change_password {
     my ($self, $new_password, %opt) = @_;
 
-    $self->SUPER::update({loginPassword => $new_password},
-			 adapter => 'changePassword',
-			 %opt,
-	)
-	if (defined $new_password && $new_password ne '');
+    if (defined $new_password && $new_password ne '') {
+	$self->_safety_check(%opt);
+	$self->SUPER::update({loginPassword => $new_password},
+			     adapter => 'changePassword',
+			     %opt,
+	    )
+    }
 
     return $self;
 }
@@ -229,20 +210,7 @@ system administrator accounts, or the login user.
 sub delete {
     my ($self, %opt) = @_;
 
-    unless ($opt{force}) {
-	die "Cowardly refusing to delete system admin account for ".$self->loginName.": (pass force => 1 to override)"
-	    if (Elive::Util::string($self->role) == 0);
-
-	my $connection = $self->connection;
-
-	my $login = $connection->login;
-	die "Not loggged in" unless $login;
-	#
-	# Less cowardly, methinks!
-	#
-	die "Refusing to delete the login user ".$login->loginName.": (pass force => 1 to override)"
-	    if $login->userId eq $self->userId;   
-    }
+    $self->_safety_check(%opt);
 
     return $self->SUPER::delete( %opt );
 }
