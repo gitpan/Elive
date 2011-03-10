@@ -10,8 +10,9 @@ use Scalar::Util;
 
 use Elive::Util;
 use Elive::Entity::User;
-use Elive::Entity::Role;
 use Elive::Entity::Group;
+use Elive::Entity::InvitedGuest;
+use Elive::Entity::Role;
 
 =head1 NAME
 
@@ -19,9 +20,9 @@ Elive::Entity::ParticipantList::Participant - A Single Meeting Participant
 
 =head1 DESCRIPTION
 
-This is a component of L<Elive::Entity::ParticipantList::Participants>. It contains details on a
-participating user, including their details and participation role (normally 2 for a moderator or 3
-for a regular participant).
+This is a component of L<Elive::Entity::ParticipantList::Participants>. It
+contains details on a participating user, including their details and
+participation role (normally 2 for a moderator or 3 for a regular participant).
 
 =head1 METHODS
 
@@ -30,14 +31,22 @@ for a regular participant).
 __PACKAGE__->entity_name('Participant');
 
 has 'user' => (is => 'rw', isa => 'Elive::Entity::User|Str',
-	       documentation => 'User or group attending the meeting',
-	       coerce => 1,
+		documentation => 'User (type=0)',
+		coerce => 1,
     );
 
 has 'group' => (is => 'rw', isa => 'Elive::Entity::Group|Str',
-		documentation => 'User or group attending the meeting',
+	       documentation => 'Group of attendees (type=1)',
+	       coerce => 1,
+    );
+# for the benefit of createSession and updateSession commands
+__PACKAGE__->_alias(participant => 'user' );
+
+has 'guest' => (is => 'rw', isa => 'Elive::Entity::InvitedGuest|Str',
+		documentation => 'Guest (type=2)',
 		coerce => 1,
     );
+__PACKAGE__->_alias( invitedGuestId => 'guest' );
 
 has 'role' => (is => 'rw', isa => 'Elive::Entity::Role|Str',
 	       documentation => 'Role of the user within this meeting',
@@ -45,7 +54,7 @@ has 'role' => (is => 'rw', isa => 'Elive::Entity::Role|Str',
     );
 
 has 'type' => (is => 'rw', isa => 'Int',
-	       documentation => 'type of participant; 0: user, 1: group'
+	       documentation => 'type of participant; 0:user, 1:group, 2:guest'
     );
 
 sub _parse {
@@ -75,52 +84,89 @@ sub _parse {
 		type => 1,
 	    }
 	}
+
+	if (eval{$_->isa('Elive::Entity::InvitedGuests')}) {
+	    #
+	    # coerce to an invited guest
+	    #
+	    return {
+		guest => $_,
+		role => {roleId => 3},
+		type => 2,
+	    }
+	}
     }
 
     return $_ if Scalar::Util::reftype($_);
+    #
+    # Simple users:
+    #     'bob=3' => user:bob, role:3, type: 0 (user)
+    #     'alice' => user:bob, role:3 (defaulted), type: 0 (user)
+    # A leading '*' indicates a group:
+    #     '*mygroup=2' => group:mygroup, role:2 type:1 (group)
+    # Invited guests are of the form: displayName(loginName)
+    #     'Robert(bob)' => guest:{loginName:bob, displayName:Robert}
+    #
+    my %parse;
 
-    # A leading '*' indicates an LDAP group. Examples:
-    # 'bob=3' => user:bob, role:3, type: 0 (user)
-    # 'alice' => user:bob, role:3 (defaulted), type: 0 (user)
-    # '*mygroup=2' => group:mygroup, role:2 type:1 (group)
+    if (m{^ \s* (.*?) \s* \( ([^\)]+) \) \s* (= (\d) \s*)? $}x) {
 
-    m{^ \s* (\*?) \s* (.*?) \s* (= (\d) \s*)? $}x
-	or die "'$_' not in format: userId=role";
+	$parse{guest} = {displayName => $1, loginName => $2};
+	$parse{type} = 2;
 
-    my $is_group = $1;
-    my $id = $2;
-    my $roleId = $4;
-    $roleId = 3 unless defined $roleId;
+	return \%parse;
+    }
+    elsif (m{^ \s* (\*?) \s* (.*?) \s* (= (\d) \s*)? $}x) {
 
-    my %parse = $is_group
-	? (group => {groupId => $id}, type => 1)
-	: (user => {userId => $id}, type => 0);
+	my $type = $1;
 
-    $parse{role}{roleId} = $roleId;
+	my $id = $2;
+	my $roleId = $4;
+	$roleId = 3 unless defined $roleId;
 
-    return \%parse;
+	if (! $type ) {
+	    $parse{user} = {userId => $id};
+	    $parse{type} = 0;
+	}
+	elsif ($type eq '*') {
+	    $parse{group} = {groupId => $id};
+	    $parse{type} = 1;
+	}
+
+	$parse{role}{roleId} = $roleId;
+
+	return \%parse;
+    }
+
+    #
+    # slightly convoluted die on return to keep Perl::Critic happy
+    #
+    return die "'$_' not in format: userId=[0-4] or *groupId=[0-4] or guestName(guestLogin)";
 }
 
 coerce 'Elive::Entity::ParticipantList::Participant' => from 'Str'
-    => via { Elive::Entity::ParticipantList::Participant->new(Elive::Entity::ParticipantList::Participant->_parse_participant($_)) };
+    => via { __PACKAGE__->new( __PACKAGE__->_parse($_) ) };
 
 =head2 participant
 
-Returns a participant. This can either be of type L<Elive::Entity::User> (type: 0), or
-L<Elive::Entity::Group> (type 1).
+Returns a participant. This can either be of type L<Elive::Entity::User> (type
+0), L<Elive::Entity::Group> (type 1) or L<Elive::Entity::InvitedGuest> (type 2).
 
 =cut
 
 sub participant {
     my ($self) = @_;
 
-    return $self->type? $self->group: $self->user;
+    return   (! $self->type)    ? $self->user
+           : ($self->type == 1) ? $self->group
+	   : $self->guest;
 }
 
 =head2 stringify
 
-Returns a string of the form userId=role. This value is used for
-comparisons, sql display, etc...
+Returns a string of the form 'userId=role' (users) '*groupId=role (groups),
+or displayName(loginName) (guests). This value is used for comparisons,
+display, etc...
 
 =cut
 
@@ -130,14 +176,21 @@ sub stringify {
 
     $data = $self->_parse($data)
 	unless Scalar::Util::refaddr($data);
-    #
-    # Stringify to the format used for updates: userId=role
-    #
-    if ($data->{type} && $data->{type} == 1) {
+    if (! $data->{type} ) {
+	# user => 'userId'
+	return Elive::Entity::User->stringify($data->{user}).'='.Elive::Entity::Role->stringify($data->{role});
+    }
+    elsif ($data->{type} == 1) {
+	# group => '*groupId'
 	return '*' . Elive::Entity::Group->stringify($data->{group}).'='.Elive::Entity::Role->stringify($data->{role});
     }
+    elsif ($data->{type} == 2) {
+	# guest => 'displayName(loginName)'
+	return Elive::Entity::InvitedGuest->stringify($data->{guest});
+    }
     else {
-	return Elive::Entity::User->stringify($data->{user}).'='.Elive::Entity::Role->stringify($data->{role});
+	# unknown
+	die "unrecognised participant type: $data->{type}";
     }
 }
 

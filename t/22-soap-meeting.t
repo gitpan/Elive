@@ -100,12 +100,8 @@ SKIP: {
 	boundaryMinutes => 15,
 	fullPermissions => 1,
 	supervised => 1,
+	seats => 2,
     );
-
-    #
-    # seats are updated via the updateMeeting command
-    #
-    ok($meeting->update({seats => 2}), 'can update number of seats in the meeting');
 
     my $server_params = Elive::Entity::ServerParameters->retrieve([$meeting->meetingId]);
 
@@ -116,8 +112,6 @@ SKIP: {
     foreach (keys %meeting_server_data) {
 	is($server_params->$_, $meeting_server_data{$_}, "server parameter $_ as expected");
     }
-
-    ok($server_params->seats == 2, 'server_param - expected number of seats');
 
     do {
 	#
@@ -139,12 +133,16 @@ SKIP: {
     # check that we can access our meeting by user and date range.
     #
 
-    my $user_meetings = Elive::Entity::Meeting->list_user_meetings_by_date(
-	[$meeting_data{facilitatorId},
-	 $meeting_data{start},
-	 $meeting_data{end},
-	 ]
-	);
+    my $user_meetings;
+    lives_ok( sub {
+	my $user_meetings
+	    = Elive::Entity::Meeting->list_user_meetings_by_date(
+								 [$meeting_data{facilitatorId},
+								  $meeting_data{start},
+								  $meeting_data{end},
+								  ]
+								 )
+	}, 'list_user_meetings_by_date(...) - lives');
 
     isa_ok($user_meetings, 'ARRAY', 'user_meetings');
 

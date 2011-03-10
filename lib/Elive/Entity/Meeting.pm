@@ -45,7 +45,6 @@ __PACKAGE__->params(
 
 # help out elive_query; expansion of 'select ** from meeting...'
 __PACKAGE__->derivable(
-    participants => '_participants',
     recordings => 'list_recordings',
     preloads => 'list_preloads',
     url => 'web_url');
@@ -109,7 +108,7 @@ has 'adapter' => (is => 'rw', isa => 'Str',
     # Set the meeting participants
     #
     my $participant_list = $meeting->participant_list;
-    $participant_list->participants([qw(smith jones)]);
+    $participant_list->participants([$smith->userId, $jones->userId]);
     $participant_list->update;
 
 A series of meetings can be created using the C<recurrenceCount> and
@@ -595,13 +594,6 @@ sub participant_list {
 		   connection => $self->connection,
 		   @args,
 	);
-}
-
-#
-# just to help out elive_query
-#
-sub _participants {
-    return (my $self = shift)->participant_list->participants;
 }
 
 =head2 list_preloads

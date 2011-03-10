@@ -9,6 +9,9 @@ extends 'Elive::Entity';
 __PACKAGE__->entity_name('ServerParameters');
 __PACKAGE__->_isa('Meeting');
 
+coerce 'Elive::Entity::ServerParameters' => from 'HashRef'
+          => via {Elive::Entity::ServerParameters->new($_) };
+
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1,
     documentation => 'associated meeting');
 __PACKAGE__->primary_key('meetingId');
@@ -55,13 +58,8 @@ Elive::Entity::ServerParameters - Meeting server parameters entity class
            fullPermissions => 0,
            supervised      => 1,
            enableTelephony => 0,
+           seats => 18,
      });
-    #
-    # Note: the number of seats is read from this class, but updates
-    # are performed through the main meeting class
-    #
-    my $seats = $meeting_params->seats;
-    $meeting->update({seats => $seats + 10});
 
 =head1 DESCRIPTION
 
@@ -114,31 +112,20 @@ sub list {return shift->_not_available}
 Updates the meeting boundary times, permissions and whether the meeting is
 supervised.
 
-Note: although maxTalkers (maximum number of simultaneous talkers) is
-retrieved via this entity, but must be updated via Elive::Entity::Meeting.
-
 =cut
 
 sub update {
-    my ($self, $update_data, @args) = @_;
+    my ($self, $update_data, %opt) = @_;
 
     $self->set( %$update_data)
 	if (keys %$update_data);
-
     #
-    # SDK seems to require a setting for fullPermissions (aka permissionOns)
-    # trap it as an error on our side.
+    # Command Toolkit seems to require a setting for fullPermissions (aka
+    # permissionOns); trap it as an error on our side.
     #
     my @required = qw/boundaryMinutes fullPermissions supervised/;
     my %changed;
     @changed{@required, $self->is_changed} = undef;
-
-    #
-    # direct changes to seats are ignored. This needs to be updated
-    # via the meeting entity.
-    #
-    warn "ignoring changed 'seats' value"
-	if (exists $changed{seats});
 
     foreach (@required) {
 	die "missing required property: $_"
@@ -146,10 +133,27 @@ sub update {
     }
 
     #
+    # direct changes to seats are ignored. This needs to be intercepted
+    # and routed to the updateMeeting command.
+    #
+    if (exists $changed{seats}) {
+	delete $changed{seats};
+
+	my $meeting_params = Elive::Entity::Meeting->_freeze({
+	    meetingId => $self,
+	    seats => $self->seats,
+	});
+
+	my $connection = $opt{connection} || $self->connection;
+
+	my $som = $connection->call(updateMeeting => %$meeting_params);
+	$connection->_check_for_errors($som);
+    }
+    #
     # This adapter barfs if we don't write values back, whether they've
     # changed or not.
     #
-    return $self->SUPER::update(undef, @args, changed => [sort keys %changed]);
+    return $self->SUPER::update(undef, %opt, changed => [sort keys %changed]);
 }
 
 =head1 See Also

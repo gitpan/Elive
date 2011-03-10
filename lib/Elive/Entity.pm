@@ -33,6 +33,7 @@ sub data_classes {
       Elive::Entity::Report
       Elive::Entity::ServerDetails
       Elive::Entity::ServerParameters
+      Elive::View::Session
       Elive::Entity::User
    );
 }
