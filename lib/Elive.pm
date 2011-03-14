@@ -7,11 +7,11 @@ Elive - Elluminate Live! (c) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 0.84
+Version 0.85
 
 =cut
 
-our $VERSION = '0.84';
+our $VERSION = '0.85';
 
 use parent qw{Class::Data::Inheritable};
 use Scalar::Util;
@@ -27,7 +27,8 @@ participants:
 
     use Elive;
     use Elive::Entity::User;
-    use Elive::Entity::Meeting;
+    use Elive::Entity::Preload;
+    use Elive::View::Session;
 
     my $meeting_name = 'Meeting of the Smiths';
 
@@ -40,23 +41,25 @@ participants:
     my $start = time() + 15 * 60; # starts in 15 minutes
     my $end   = $start + 30 * 60; # runs for half an hour
 
-    my $meeting = Elive::Entity::Meeting->insert({
+    # upload whiteboard content
+    #
+    my $preload = Elive::Entity::Preload->upload('welcome.wbd');
+
+    my $meeting = Elive::View::Session->insert({
 	 name           => $meeting_name,
 	 facilitatorId  => Elive->login,
 	 start          => $start . '000',
 	 end            => $end   . '000',
+         participants   => $participants,
+         add_preload    => $preload,
 	 });
-
-    my $participant_list = $meeting->participant_list;
-    $participant_list->participants($participants);
-    $participant_list->update;
 
     Elive->disconnect;
 
 =head1 DESCRIPTION
 
 Elive is a set of Perl bindings and entity definitions for the Elluminate
-I<Live!> Command Toolkit; nn particular, the entity commands.
+I<Live!> Command Toolkit; in particular, the entity commands.
 
 These commands are available as a SOAP web service and can be used to automate
 the raising, management and connection to meetings; and other related entities,
@@ -265,8 +268,8 @@ Elluminate Services Errors:
 =item   "Unable to determine a command for the key : Xxxx"
 
 This may indicate that the particular command is is not available for your
-site instance. Please follow the instructions in the README file
-for detecting and repairing missing adapters.
+site instance. Please follow the instructions in the README file for
+detecting and repairing missing adapters.
 
 =item   "User [<username>], not permitted to access the command {<command>]"
 
@@ -329,11 +332,9 @@ see the README file.
 
 =item L<Elive::Connection::SDK> - Elluminate SOAP connection
 
+=item L<Elive::View::Session>
+
 =item L<Elive::Entity::Group>
-
-=item L<Elive::Entity::Meeting>
-
-=item L<Elive::Entity::MeetingParameters>
 
 =item L<Elive::Entity::ParticipantList>
 
@@ -342,12 +343,6 @@ see the README file.
 =item L<Elive::Entity::Recording>
 
 =item L<Elive::Entity::Report>
-
-=item L<Elive::Entity::ServerDetails>
-
-=item L<Elive::Entity::ServerParameters>
-
-=item L<Elive::Entity::Session>
 
 =item L<Elive::Entity::User>
 
@@ -361,7 +356,7 @@ see the README file.
 
 =item L<elive_raise_meeting> - sample script that create meetings via one-liners
 
-=item L<elive_lint_config> - sanity checker for  Elluminate site configurations
+=item L<elive_lint_config> - sanity checker for Elluminate server configurations
 
 =back
 
@@ -392,84 +387,6 @@ Describes setting up multiple site instances.
 
 =back
 
-=head1 USAGE NOTES
-
-=over 4
-
-=item SQL Access
-
-Elluminate site instances by default use McKoi - a lightweight pure
-Java/JDBC database.
-
-You might want to Consider using other databases, such as  SQL Server, Oracle
-or MySQL. These are supported by Elluminate and have JDBC bridges available.
-
-However, Elluminate Live! also bundles JDBCScriptTool and JDBCQueryTool.
-Both can be used for basic SQL access to McKoi databases.
-
-Both need to be run locally on the server:
-
-    % cd /opt/ElluminateLive/manager/tomcat/webapps/<instance>/WEB-INF/
-
-=over 4
-
-=item B<1.> JDBCScript Tool can be used for text based queries
-
-    % echo 'describe Meetings'|/opt/ElluminateLive/jre/bin/java -cp lib/mckoidb.jar com.mckoi.tools.JDBCScriptTool -url "jdbc:mckoi:local://./resources/db.conf" -u admin -p admin
-    Using JDBC Driver: com.mckoi.JDBCDriver
-    Connection established to: jdbc:mckoi:local://./resources/db.conf
-
-    > describe Meetings
-    +-------------------+----------------+----------+--------------+---------+
-    | name              | type           | not_null | index        | default |
-    +-------------------+----------------+----------+--------------+---------+
-    | startDate         | BIGINT         | false    | InsertSearch | NULL    |
-    | allModerators     | BOOLEAN(0,0)   | false    | InsertSearch | NULL    |
-    | restrictedMeeting | BOOLEAN(0,0)   | false    | InsertSearch | NULL    |
-    | privateMeeting    | BOOLEAN(0,0)   | false    | InsertSearch | NULL    |
-    | name              | VARCHAR(256,0) | false    | InsertSearch | NULL    |
-    | creatorId         | VARCHAR(64,0)  | false    | InsertSearch | NULL    |
-    | meetingId         | BIGINT         | true     | InsertSearch | NULL    |
-    | endDate           | BIGINT         | false    | InsertSearch | NULL    |
-    | adapter           | VARCHAR(64,0)  | false    | InsertSearch | NULL    |
-    | password          | VARCHAR(16,0)  | false    | InsertSearch | NULL    |
-    | deleted           | BOOLEAN(0,0)   | false    | InsertSearch | NULL    |
-    +-------------------+----------------+----------+--------------+---------+
-
-     --- FINISHED    
-
-You will need write access to the database and log files for this to work.
-
-=item B<2.> JDBCScript Tool can be used for text based queries
-
-    % /opt/ElluminateLive/jre/bin/java -cp lib/mckoidb.jar com.mckoi.tools.JDBCQueryTool -url "jdbc:mckoi:local://./resources/db.conf" -u admin -p admin
-
-This should give you an SQL window, providing you have a X display to the
-server.
-
-=back
-
-The first command to try might be 'show tables'.
-
-As always, be careful running update and delete commands on a live production
-database!
-
-=item LDAP Authentication
-
-Elluminate I<Live!> can also be configured to use an LDAP repository for
-user authentication.  Users can still be retrieved or listed via the SDK.
-
-=over 4
-
-=item * You can map both of the user's I<userId> and I<loginName> to the
-LDAP I<uid> attribute.
-
-=item * Updates and deletes are not supported by the LDAP DAO adapter.
-
-=back
-
-=back
-
 =head1 AUTHOR
 
 David Warring, C<< <david.warring at gmail.com> >>
@@ -480,7 +397,7 @@ David Warring, C<< <david.warring at gmail.com> >>
 
 =item Elive is a newish module
 
-It has been used and tested against a number of sites running Elluminate 9.0
+It has been used and tested against a number of sites running Elluminate 9.5
 to 10.0.1.
 
 So far it does not implement all SOAP calls, but concentrates on entities
