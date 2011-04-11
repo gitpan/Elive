@@ -1,8 +1,0 @@
-all : tracedeps/t---02-entity-update.t tracedeps/t---04-entity-reuse.t
-
-tracedeps/t---02-entity-update.t : t/02-entity-update.t lib/Elive.pm lib/Elive/Entity.pm lib/Elive/Entity/User.pm lib/Elive/Entity/Role.pm
-	@echo $<; touch $@
-
-tracedeps/t---04-entity-reuse.t : t/04-entity-reuse.t lib/Elive.pm lib/Elive/Entity.pm lib/Elive/Entity/User.pm lib/Elive/Entity/Role.pm  lib/Elive/Entity/Meeting.pm
-	@echo $<; touch $@
-
