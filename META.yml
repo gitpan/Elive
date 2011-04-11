@@ -55,4 +55,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://dwarring@elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 0.86
+version: 0.87
