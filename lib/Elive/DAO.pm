@@ -82,9 +82,9 @@ sub _url {
 
     my $url = $user->url
 
-Return a restful url for an object instance. This will include both
-the url of the connection string and the entity class name. It is used
-internally to uniquely identify and cache objects across repositories.
+Abstract method to compute a restful url for an object instance. This will
+include both the url of the connection string and the entity class name. It
+is used internally to uniquely identify and cache objects across repositories.
 
 =cut
 
@@ -107,8 +107,8 @@ sub url {
              copy => 1,             # return a simple blessed uncached object.
            );
 
-Construct an entity from data. A copy is made of the data for use by the
-c<is_changed> and c<revert> methods.
+Abstract method to construct an entity from data. A copy is made of the data
+for use by the C<is_changed> and C<revert> methods.
 
 =cut
 
@@ -390,57 +390,8 @@ sub _thaw {
     return \%data;
 }
 
-sub _unpack_as_list {
-    my $class = shift;
-    my $result = shift;
-
-    $result = $class->_unpack_results($result);
-
-    my $reftype = Elive::Util::_reftype($result);
-
-    my $results_list;
-
-    if ($reftype eq 'HASH') {
-
-	$results_list = [ $result ];
-
-    }
-    elsif ($reftype eq 'ARRAY') {
-
-	$results_list = $result;
-
-    }
-    elsif ($reftype) {
-	Carp::croak "unknown type in result set: $reftype";
-    }
-    else {
-
-	$results_list = defined($result) && $result ne ''
-	    ? [ $result ]
-	    : [];
-
-    }
-
-    warn "$class result: ".YAML::Dump($result)
-	if ($class->debug >= 2);
-
-    return $results_list;
-}
-
-sub _get_results {
-    my $class = shift;
-    my $som = shift;
-    my $connection = shift;
-
-    $connection->_check_for_errors($som);
-
-    my $results_list = $class->_unpack_as_list($som->result);
-
-    return $results_list;
-}
-
 sub _process_results {
-    my ($class, $soap_results, %opt) = @_;
+    my ($class, $soap_results) = @_;
 
     #
     # Thaw our returned SOAP responses to reconstruct the data
@@ -498,8 +449,8 @@ sub _readback_check {
 
 =head2 is_changed
 
-Returns a list of properties that have been changed since the entity was last retrieved
-or saved.
+Abstract method. Returns a list of properties that have been changed since the
+entity was last retrieved or saved.
 
 =cut
 
@@ -538,7 +489,7 @@ sub is_changed {
 
     $obj->set(prop1 => val1, prop2 => val2 [,...])
 
-Set entity properties.
+Abstract method to set entity properties.
 
 =cut
 
@@ -598,8 +549,8 @@ sub _to_aliases {
 
     print "inserted user with id: ".$new_user->userId."\n";
 
-Inserts a new entity. The primary key should not be specified. It is
-generated for you and returned with the newly created object.
+Abstract method to insert new entities. The primary key is generally not
+provided. It is generated for you and returned with the newly created object.
 
 =cut
 
@@ -662,7 +613,7 @@ sub live_entity {
 
     my $user_ref = $live_entities->{'http://test.org/User/1234567890'};
 
-Returns the contents of Elive::Entity in-memory cache. 
+Returns a reference to the Elive::Entity in-memory cache. 
 
 =cut
 
@@ -673,7 +624,8 @@ sub live_entities {
 
 =head2 update
 
-Apply updates. The following commits outstanding changes to the object.
+Abstract method to update entities. The following commits outstanding changes
+to the object.
 
     $obj->{foo} = 'Foo';  # change foo attribute directly
     $foo->update;         # save
@@ -684,11 +636,7 @@ Apply updates. The following commits outstanding changes to the object.
  Updates may also be passed as parameters:
 
     # change and save foo and bar. All in one go.
-    $obj->update({foo => 'Foo', bar => 'Bar'},
-                 command => $cmd,      # soap command to use
-                 params => \%params,   # additional soap params,
-                 changed => \@props,   # properties to update,
-                );
+    $obj->update({foo => 'Foo', bar => 'Bar'});
 
 =cut
 
@@ -780,14 +728,14 @@ sub update {
 
 =head2 list
 
-    my $users = Elive::Entity::Users->list(
+    my $users = Elive::Entity::User->list(
 		    filter => 'surname = smith',  # filter results (server side)
 		    command => $cmd,              # soap command to use
 		    connection => $connection,    # connection to use
 		    raw => 1,                     # return unblessed data
                 );
 
-Retrieve a list of objects from a table.
+Abstract method to list entity objects.
 
 =cut
 
@@ -819,7 +767,7 @@ sub list {
 	$connection,
 	);
 
-    my $rows = $class->_process_results($results, %opt);
+    my $rows = $class->_process_results( $results );
 
     return [
 	map { $class->construct( $_, connection => $connection) }
@@ -854,7 +802,7 @@ sub _fetch {
 	$connection,
 	);
 
-    my $rows = $class->_process_results($results, %opt);
+    my $rows = $class->_process_results( $results );
     return $rows if $opt{raw};
     #
     # 0 results => not found. Would be treated by readback as an error,
@@ -875,7 +823,7 @@ sub _fetch {
                         );
     
 
-Retrieve a single entity objects by primary key.
+Abstract method to retrieve a single entity object by primary key.
 
 =cut
 
@@ -962,7 +910,7 @@ sub _retrieve_all {
 
     $user_obj->delete;
 
-Delete an entity from the database.
+Abstract method to delete an entity.
 
 =cut
 
@@ -1011,7 +959,7 @@ sub delete {
     $user->revert                        # revert entire entity
     $user->revert(qw/loginName email/);  # revert selected properties
 
-Revert an entity to its last constructed value.
+Abstract method to revert an entity to its last constructed value.
 
 =cut
 
@@ -1021,20 +969,17 @@ sub revert {
     my $db_data = $self->_db_data
 	|| die "object doesn't have db-data!? - can't cope";
 
-    if (@props) {
+    @props = $self->is_changed
+	unless @props;
 
-	for (@props) {
+    for (@props) {
 
-	    if (exists $db_data->{$_}) {
-		$self->{$_} = $db_data->{$_};
-	    }
-	    else {
-		delete $self->{$_};
-	    }
+	if (exists $db_data->{$_}) {
+	    $self->{$_} = $db_data->{$_};
 	}
-    }
-    else {
-	%{ $self } = %{ $db_data };
+	else {
+	    delete $self->{$_};
+	}
     }
 
     return $self;
