@@ -20,8 +20,9 @@ __PACKAGE__->_alias(groupName => 'name', freeze => 1);
 
 has 'members' => (is => 'rw', isa => 'Elive::Entity::Group::Members',
 		  coerce => 1,
-		  documentation => "ids of users in the group");
+		  documentation => "ids of users or sub-groups");
 __PACKAGE__->_alias(groupMembers => 'members', freeze => 1);
+__PACKAGE__->_alias(entry => 'members');
 
 has 'dn' => (is => 'rw', isa => 'Str',
 	       documentation => 'LDAP Domain (where applicable)');
@@ -47,12 +48,23 @@ Elive::Entity::Group - Elluminate Group entity instance class
 These are used to maintain user groups for general use. In particular,
 for group selection of meeting participants.
 
-The C<members> property contains the group members as an array of user IDs.
+The C<members> property contains the group members as an array of user IDs
+or sub-group objects.
 
 If the a site is configured for LDAP, groups are mapped to LDAP groups. 
 Group access becomes read-only. The affected methods are: C<insert>, C<update>,
 and C<delete>.
 =cut
+
+sub _thaw {
+    my $class = shift;
+    my $db_data = shift;
+    my $path = shift || '';
+
+    return $db_data unless ref $db_data;
+
+    return $class->SUPER::_thaw($db_data, $path, @_);
+}
 
 =head1 METHODS
 
@@ -105,6 +117,41 @@ sub update {
 	unless grep {$_ eq 'name'} @changed;
 
     return $self->SUPER::update( undef, %opt, changed => \@changed);
+}
+
+=head2 expand_members
+
+This is a utility method that includes the sum total of all members in
+the group, including those in recursively nested sub-groups. The list
+is further reduced to only include unique members.
+
+    my @all_members = $group_obj->expand_members();
+
+=cut
+
+sub expand_members {
+    my $self = shift;
+
+    my %seen;
+    my @members;
+
+    foreach (@{ $self->members || []}) {
+	my @elements;
+
+	if (Scalar::Util::blessed($_) && $_->can('expand_members')) {
+	    # recursive expansion
+	    @elements = $_->expand_members;
+	}
+	else {
+	    @elements = Elive::Util::string($_);
+	}
+
+	foreach (@elements) {
+	    push(@members, $_) unless $seen{$_}++;
+	}
+    }
+
+    return @members;
 }
 
 1;

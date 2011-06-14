@@ -21,7 +21,7 @@ has 'seats' => (is => 'rw', isa => 'Int',
 __PACKAGE__->_alias(requiredSeats => 'seats');
 
 has 'boundaryMinutes' => (is => 'rw', isa => 'Int',
-    documentation => 'meeting boundary time');
+    documentation => 'meeting boundary time (minutes)');
 __PACKAGE__->_alias(boundary => 'boundaryMinutes', freeze => 1);
 __PACKAGE__->_alias(boundaryTime => 'boundaryMinutes'); # v 9.5.0 +
 
@@ -33,16 +33,44 @@ __PACKAGE__->_alias(permissions => 'fullPermissions');
 has 'supervised' => (is => 'rw', isa => 'Bool',
     documentation => 'whether the moderator can see private messages');
 
-has 'enableTelephony' => (is => 'rw', isa => 'Bool');
-has 'telephonyType' => (is => 'rw', isa => 'Ref|Str');
-has 'moderatorTelephonyAddress' => (is => 'rw', isa => 'Str');
-has 'moderatorTelephonyPIN' => (is => 'rw', isa => 'Str');
-has 'participantTelephonyAddress' => (is => 'rw', isa => 'Str');
-has 'participantTelephonyPIN' => (is => 'rw', isa => 'Str');
-has 'serverTelephonyAddress' => (is => 'rw', isa => 'Str');
-has 'serverTelephonyPIN' => (is => 'rw', isa => 'Str');
-has 'serverTelephonyAddress' => (is => 'rw', isa => 'Str');
-has 'redirectURL' => (is => 'rw', isa => 'Str');
+has 'enableTelephony'
+    => (is => 'rw', isa => 'Bool',
+	documentation => 'Enable Telephony');
+
+has 'telephonyType'
+    => (is => 'rw', isa => 'Str',
+			documentation => 'Can be either SIP/PHONE.' );
+
+has 'moderatorTelephonyAddress'
+    => (is => 'rw', isa => 'Str',
+	documentation => 'Either a PHONE number or SIP address for the moderator for telephone');
+
+has 'moderatorTelephonyPIN'
+    => (is => 'rw', isa => 'Str',
+	documentation => 'PIN for moderator telephony');
+
+has 'participantTelephonyAddress'
+    => (is => 'rw', isa => 'Str',
+	documentation => 'Either a PHONE number or SIP address for the participants for telephone');
+
+has 'participantTelephonyPIN'
+    => (is => 'rw', isa => 'Str',
+	documentation => 'PIN for participants telephony');
+
+has 'serverTelephonyAddress'
+    => (is => 'rw', isa => 'Str',
+	documentation => 'Either a PHONE number or SIP address for the server');
+
+has 'serverTelephonyPIN'
+    => (is => 'rw', isa => 'Str',
+	documentation => 'PIN for the server');
+
+has 'serverTelephonyAddress'
+    => (is => 'rw', isa => 'Str',
+	documentation => 'Either a PHONE number or SIP address for the server');
+
+has 'redirectURL' => (is => 'rw', isa => 'Str',
+		      documentation => 'URL to redirect users to after the online session is over.');
 
 =head1 NAME
 
@@ -51,9 +79,9 @@ Elive::Entity::ServerParameters - Meeting server parameters entity class
 =head1 SYNOPSIS
 
     my $meeting = Elive::Entity::Meeting->insert( \%meeting_data );
-    my $params $meeting->server_parameters;
+    my $server_params $meeting->server_parameters;
 
-    $params->update({
+    $server_params->update({
            boundaryMinutes => 15,
            fullPermissions => 0,
            supervised      => 1,

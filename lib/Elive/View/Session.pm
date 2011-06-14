@@ -13,6 +13,8 @@ use Elive::Entity::ParticipantList;
 use Elive::Util;
 use Carp;
 
+__PACKAGE__->mk_classdata('_delegates');
+
 __PACKAGE__->entity_name('Session');
 __PACKAGE__->collection_name('Sessions');
 has 'id' => (is => 'rw', isa => 'Int', required => 1);
@@ -20,29 +22,35 @@ __PACKAGE__->primary_key('id');
 __PACKAGE__->_alias(meetingId => 'id');
 __PACKAGE__->_alias(sessionId => 'id');
 
-our %delegates = (
+__PACKAGE__->_delegates({
     meeting => 'Elive::Entity::Meeting',
     meeting_parameters => 'Elive::Entity::MeetingParameters',
     server_parameters => 'Elive::Entity::ServerParameters',
     participant_list => 'Elive::Entity::ParticipantList',
-    );
+    });
 
-our %handled = (meetingId => 1);
+sub _delegate {
+    my $pkg = shift;
 
-foreach my $prop (sort keys %delegates) {
-    my $class = $delegates{$prop};
-    my $aliases = $class->_get_aliases;
-    my @delegates = grep {!$handled{$_}++} ($class->properties, $class->derivable, sort keys %$aliases);
-    push (@delegates, qw{buildJNLP check_preload add_preload remove_preload is_participant is_moderator list_preloads list_recordings})
-	if $prop eq 'meeting';
+    our %handled = (meetingId => 1);
+    my $delegates = $pkg->_delegates;
 
-    has $prop
-    => (is => 'rw', isa => $class, coerce => 1,
-	handles => \@delegates,
-	lazy => 1,
-	default => sub {$class->retrieve($_[0]->id, copy => 1, connection => $_[0]->connection)},
-    );
+    foreach my $prop (sort keys %$delegates) {
+	my $class = $delegates->{$prop};
+	my $aliases = $class->_get_aliases;
+	my @delegates = grep {!$handled{$_}++} ($class->properties, $class->derivable, sort keys %$aliases);
+	push (@delegates, qw{buildJNLP check_preload add_preload remove_preload is_participant is_moderator list_preloads list_recordings})
+	    if $prop eq 'meeting';
+	has $prop
+	    => (is => 'rw', isa => $class, coerce => 1,
+		handles => \@delegates,
+		lazy => 1,
+		default => sub {$class->retrieve($_[0]->id, copy => 1, connection => $_[0]->connection)},
+	    );
+    }
 }
+
+__PACKAGE__->_delegate;
     
 =head1 NAME
 
@@ -51,6 +59,8 @@ Elive::View::Session - Session view class
 =head1 DESCRIPTION
 
 A session is a consolidated view of meetings, meeting parameters, server parameters and participants.
+
+=cut
 
 =head1 METHODS
 
@@ -89,7 +99,7 @@ Creates a new session on an Elluminate server.
 
     my $session = Elive::View::Session->insert( \%session_data );
 
-A series of sesions can be created using the C<recurrenceCount> and C<recurrenceDays> parameters.
+A series of sessions can be created using the C<recurrenceCount> and C<recurrenceDays> parameters.
 
     #
     # create three weekly sessions
@@ -109,7 +119,7 @@ sub insert {
     #
     # start by inserting the meeting
     #
-    my @meeting_props = $class->_owned_by('Elive::Entity::Meeting' => (sort keys %data));
+    my @meeting_props = $class->_data_owned_by('Elive::Entity::Meeting' => (sort keys %data));
 
     my %meeting_data = map {
 	$_ => delete $data{$_}
@@ -159,11 +169,12 @@ sub update {
     my %opts = @_;
 
     my $preloads = delete $data{add_preload};
+    my $delegates = $self->_delegates;
 
-   foreach my $delegate (sort keys %delegates) {
+   foreach my $delegate (sort keys %$delegates) {
 
-	my $delegate_class = $delegates{$delegate};
-	my @delegate_props = $self->_owned_by($delegate_class => sort keys %data);
+	my $delegate_class = $delegates->{$delegate};
+	my @delegate_props = $self->_data_owned_by($delegate_class => sort keys %data);
 	next unless @delegate_props
 	    || ($self->{$delegate} && $self->{$delegate}->is_changed);
 
@@ -249,36 +260,47 @@ sub delete {
     my %opt = @_;
 
     $self->meeting->delete;
-    foreach my $delegate (sort keys %delegates) {
+    my $delegates = $self->_delegates;
+
+    foreach my $delegate (sort keys %$delegates) {
 	$self->$delegate->_deleted(1) if $self->{$delegate};
     }
 
     return 1;
 }
 
-sub _owned_by {
+=head2 buildJNLP check_preload add_preload remove_preload is_participant is_moderator list_preloads list_recordings
+
+These methods are available from L<Elive::Entity::Meeting>.
+
+=head2 adapter allModerators boundaryMinutes costCenter deleted enableTelephony end facilitatorId followModerator fullPermissions id inSessionInvitation maxTalkers moderatorNotes moderatorTelephonyAddress moderatorTelephonyPIN name participantTelephonyAddress participantTelephonyPIN participants password privateMeeting profile raiseHandOnEnter recordingObfuscation recordingResolution recordingStatus redirectURL restrictedMeeting seats serverTelephonyAddress serverTelephonyPIN start supervised telephonyType userNotes videoWindow 
+
+These attributes are available from: L<Elive::Entity::Meeting>, L<Elive::Entity::MeetingParamaters>, L<Elive::Entity::ServerParameters>, L<Elive::Entity::ParticipantList>.
+
+=cut
+
+sub _data_owned_by {
     my $class = shift;
     my $delegate_class = shift;
     my @props = @_;
 
-    my $delegate_types = $delegate_class->property_types;
-    my $delegate_aliases = $delegate_class->_aliases;
-    my %delegate_params = $delegate_class->params;
+    my %owns = (%{ $delegate_class->property_types },
+		%{ $delegate_class->_aliases },
+		$delegate_class->params);
 
-    return grep {exists $delegate_types->{$_}
-		 || exists $delegate_aliases->{$_}
-		 || exists $delegate_params{$_};
-    } @props
+    return grep { exists $owns{$_} } @props;
 }
 
 sub set {
     my $self = shift;
     my %data = @_;
 
-    foreach my $delegate (sort keys %delegates) {
+    my $delegates = $self->_delegates;
 
-	my $delegate_class = $delegates{$delegate};
-	my @delegate_props = $self->_owned_by($delegate_class => sort keys %data);
+    foreach my $delegate (sort keys %$delegates) {
+
+	my $delegate_class = $delegates->{$delegate};
+	my @delegate_props = $self->_data_owned_by($delegate_class => sort keys %data);
 	my %delegate_data =  map {$_ => delete $data{$_}} @delegate_props;
 
 	$delegate_class->set( %delegate_data );
@@ -294,10 +316,11 @@ sub properties {
     my $class = shift;
 
     my %seen = (meetingId => 1);
+    my $delegates = $class->_delegates;
 
     my @all_properties = sort grep {! $seen{$_}++} (
 	'id',
-	map {$_->properties} sort values %delegates,
+	map {$_->properties} sort values %$delegates,
     );
 
     return @all_properties;
@@ -307,10 +330,11 @@ sub property_types {
     my $class = shift;
 
     my $id = $class->SUPER::property_types->{id};
+    my $delegates = $class->_delegates;
 
     my %property_types = (
 	id => $id,
-	map { %{$_->property_types} } sort values %delegates,
+	map { %{$_->property_types} } sort values %$delegates,
     );
 
     delete $property_types{meetingId};
@@ -321,15 +345,20 @@ sub property_types {
 sub property_doco {
     my $class = shift;
 
+    my $delegates = $class->_delegates;
+
     return {
-	map { %{$_->property_doco} } sort values %delegates,
+	map { %{$_->property_doco} } sort values %$delegates,
     };
 }
 
 sub derivable {
     my $class = shift;
+
+    my $delegates = $class->_delegates;
+
     return (
-	map { $_->derivable } sort values %delegates,
+	map { $_->derivable } sort values %$delegates,
 	);
 }
 
@@ -349,13 +378,6 @@ access to attributes of meeting parameters, server parameter and  participant
 list.
 
 =back
-
-=head1 SEE ALSO
-
-L<Elive::Entity::Meeting>
-L<Elive::Entity::MeetingParameters>
-L<Elive::Entity::ServerParameters>
-L<Elive::Entity::ParticipantList>
 
 =cut
 
