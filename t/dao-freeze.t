@@ -1,13 +1,15 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 33;
+use Test::More tests => 39;
 use Test::Warn;
 use Scalar::Util;
 
 use Elive::Connection;
 use Elive::Entity::User;
+use Elive::Entity::Group;
 use Elive::Entity::ParticipantList;
 use Elive::Entity::ServerParameters;
+use Elive::Entity::Session;
 use Elive::Util;
 
 use lib '.';
@@ -169,6 +171,16 @@ is_deeply($aliases->{boundary}, {
     freeze => 1},
     'server_parameter alias for boundaryMinutes - as expected');
 
+my $sub_group = Elive::Entity::Group->new({groupId=>'subgroup', name=>'Test sub-group', members => ['trev', 'sally']});
+my $main_group = Elive::Entity::Group->new({groupId=>'*maingroup', name=>'Test main group', members => ['alice', 'bob', $sub_group]});
+my $main_group_frozen = Elive::Entity::Group->_freeze($main_group);
+
+is_deeply( $main_group_frozen, {
+    groupId => 'maingroup',
+    groupMembers => '*subgroup,alice,bob',
+    groupName => 'Test main group'},
+	   'group freeze');
+
 my $server_parameter_frozen = Elive::Entity::ServerParameters->_freeze($server_parameter_data);
 is_deeply( $server_parameter_frozen, {
     meetingId => 123456789000,
@@ -176,3 +188,72 @@ is_deeply( $server_parameter_frozen, {
     permissionsOn => 'true'},
     'server parameter freeze from data');
 
+my $participants_frozen = Elive::Entity::ParticipantList->_freeze({
+    meetingId => 12345,
+    participants => [Elive::Entity::User->new({userId=>'bob', loginName => 'bob',role=>2}),
+		    'alice=2',
+		     Elive::Entity::Group->new({groupId=>'testgroup1', name=>'testgroup1'}),
+		     '*testgroup2=2']
+});
+
+is_deeply($participants_frozen, {
+    meetingId => 12345,
+    users => '*testgroup1=3;*testgroup2=2;alice=2;bob=3'
+ }, 'participant list freezing');
+
+my $session_frozen = Elive::Entity::Session->_freeze(
+    {id => 12345, participants => 'alice=2;bob=3;*chair=2;*pleb=3;some_guest (john.doe@acme.org)', repeatEvery => 3, sundaySessionIndicator => 1, enableTelephony => 1});
+
+is_deeply($session_frozen,
+	  { id => 12345,
+	    invitedGuests => 'some_guest (john.doe@acme.org)',
+	    invitedModerators => '*chair,alice',
+	    invitedParticipantsList => '*pleb,bob',
+	    repeatEvery => 3,
+            enableTeleconferencing => 'true',
+	    sundaySessionIndicator => 'true',
+	  },
+	  'Frozen session (participant string)');
+
+$session_frozen = Elive::Entity::Session->_freeze(
+    {id => 12345, participants => [qw(alice=2 bob=3)]});
+
+is_deeply($session_frozen,
+	  { id => 12345,
+	    invitedModerators => 'alice',
+	    invitedParticipantsList => 'bob',
+	    invitedGuests => '',
+	  },
+	  'Frozen session (participant array)');
+
+my $preload_obj = Elive::Entity::Preload->new({
+    preloadId => 1111,
+    name => 'test.wbd',
+    ownerId => 'bob',
+    data => 'junk',
+});
+
+my $preload_frozen = $preload_obj->_freeze;
+is_deeply($preload_frozen,
+	  {
+	      data => 'junk',
+	      mimeType => 'application/octet-stream',
+	      name =>  'test.wbd',
+	      ownerId => 'bob',
+	      preloadId => 1111,
+	      size => 4,
+	      type => 'whiteboard',
+	  }, 'preload frozen');
+
+
+$session_frozen = Elive::Entity::Session->_freeze(
+    {id => 12345, participants => 'bob=2', preloadIds => [$preload_obj, 2222]});
+
+is_deeply($session_frozen,
+	  { id => 12345,
+	    preloadIds => '1111,2222',
+	    invitedModerators => 'bob',
+	    invitedParticipantsList => '',
+	    invitedGuests => '',
+	  },
+	  'Frozen session (preloads)');

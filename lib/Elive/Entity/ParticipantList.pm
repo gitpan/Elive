@@ -6,8 +6,8 @@ use Mouse::Util::TypeConstraints;
 
 extends 'Elive::Entity';
 
-use Elive::Entity::ParticipantList::Participant;
-use Elive::Entity::ParticipantList::Participants;
+use Elive::Entity::Participant;
+use Elive::Entity::Participants;
 use Elive::Entity::User;
 use Elive::Entity::Group;
 use Elive::Entity::Role;
@@ -19,12 +19,14 @@ use Carp;
 
 __PACKAGE__->entity_name('ParticipantList');
 
+coerce 'Elive::Entity::ParticipantList' => from 'HashRef'
+          => via {Elive::Entity::ParticipantList->new($_) };
+
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1);
 __PACKAGE__->primary_key('meetingId');
 __PACKAGE__->params(users => 'Str');
 
-has 'participants' => (is => 'rw', isa => 'Elive::Entity::ParticipantList::Participants',
-    coerce => 1);
+has 'participants' => (is => 'rw', isa => 'Elive::Entity::Participants', coerce => 1);
 #
 # NOTE: thawed data may be returned as the 'participants' property.
 # but for frozen data the parameter name is 'users'.
@@ -158,11 +160,11 @@ sub update {
 		   connection => $self->connection,
 	) or die "meeting not found: ".$meeting_id;
 
-    my ($users, $groups, $guests) = $self->_collate_participants;
+    my ($users, $groups, $guests) = $self->participants->_group_by_type;
     # underlying adapter does not yet support groups or guests as
     # participants.
 
-    $self->_massage_participants ($users, $groups, $guests);
+    $self->_build_elm2x_participants ($users, $groups, $guests);
     #
     # make sure that the facilitator is included with a moderator role
     #
@@ -176,7 +178,7 @@ sub update {
     my $class = ref($self);
     $self = $class->retrieve([$self->id], connection => $self->connection);
 
-    my ($added_users, $_added_groups, $_added_guests) = $self->_collate_participants;
+    my ($added_users, $_added_groups, $_added_guests) = $self->participants->_group_by_type;
     #
     # a common scenario is adding unknown users. Check for this specific
     # condition and raise a specific friendlier error.
@@ -190,39 +192,46 @@ sub update {
     Carp::croak "unable to add $rejected_user_count of $requested_user_count participants; rejected users: @rejected_users"
 	if $rejected_user_count;
 
-    $class->_readback_check({meetingId => $self->meetingId,
-			     participants => $participants},
-			    [$self]);
+    #
+    # todo currently bypassing our own readback check!
+    $class->SUPER::_readback_check({meetingId => $self->meetingId,
+				    participants => $participants},
+				   [$self]);
 
     return $self;
 }
 
-sub _massage_participants {
+sub _build_elm2x_participants {
     my ($self, $users, $groups, $guests) = @_;
     #
-    # the updateParticipantList has some current restrictions on handling
-    # groups and invited guests.
-    # I have also considered the updateSession command. This can handle both
-    # groups and guests, but introduces other restrictions.
+    # Take our best short at passing participants via the elm 2.x
+    # setParticipantList and updateParticipantList commands. These have
+    # some restrictions on the handling of groups and invited guests.
+    #
     #
    if (keys %$guests) {
+       # no can do invited guests
 	carp join(' ', "ignoring guests:", sort keys %$guests);
 	%$guests = ();
     }
 
-    foreach my $group_id (keys %$groups) {
+    foreach my $group_spec (keys %$groups) {
 	#
 	# Current restriction with passing groups via setParticipantList
 	# etc adapters.
 	#
-	carp "client side expansion of group: $group_id";
-	my $role = delete $groups->{ $group_id };
+	carp "client side expansion of group: $group_spec";
+	my $role = delete $groups->{ $group_spec };
+	(my $group_id = $group_spec) =~ s{^\*}{};
+
 	my $group = Elive::Entity::Group->retrieve($group_id,
 						   connection => $self->connection,
 						   reuse => 1,
 	    );
 
-	foreach (@{ $group->members }) {
+	my @members = $group->expand_members;
+
+	foreach (@members) {
 	    #
 	    # member names may be in the format <ldap-domain>:userId
 	    #
@@ -231,41 +240,6 @@ sub _massage_participants {
             $users->{ $member } ||= $role;
         }
     }
-}
-
-sub _collate_participants {
-    my $self = shift;
-
-    my @raw_participants = @{ $self->participants || [] };
-
-    my %users;
-    my %groups;
-    my %guests;
-
-    foreach (@raw_participants) {
-	my $participant = Elive::Entity::ParticipantList::Participant->_parse($_);
-	my $id;
-	my $roleId = Elive::Entity::Role->stringify( $participant->{role} )
-	    || 3;
-
-	if (! $participant->{type} ) {
-	    $id = Elive::Entity::User->stringify( $participant->{user} );
-	    $users{ $id } = $roleId;
-	}
-	elsif ($participant->{type} == 1) {
-	    $id = Elive::Entity::Group->stringify( $participant->{group} );
-	    $groups{ $id } = $roleId;
-	}
-	elsif ($participant->{type} == 2) {
-	    $id = Elive::Entity::InvitedGuest->stringify( $participant->{guest} );
-	    $guests{ $id } = $roleId;
-	}
-	else {
-	    carp("unknown type: $participant->{type} in participant list: ".$self->id);
-	}
-    }
-
-    return (\%users, \%groups, \%guests);
 }
 
 sub _set_participant_list {
@@ -279,15 +253,15 @@ sub _set_participant_list {
     my @participants;
 
     foreach (keys %$users) {
-	push(@participants, Elive::Entity::ParticipantList::Participant->new({user => $_, role => $users->{$_}, type => 0}) )
+	push(@participants, Elive::Entity::Participant->new({user => $_, role => $users->{$_}, type => 0}) )
     }
 
     foreach (keys %$groups) {
-	push(@participants, Elive::Entity::ParticipantList::Participant->new({group => $_, role => $groups->{$_}, type => 1}) )
+	push(@participants, Elive::Entity::Participant->new({group => $_, role => $groups->{$_}, type => 1}) )
     }
 
     foreach (keys %$guests) {
-	push(@participants, Elive::Entity::ParticipantList::Participant->new({guest => $_, role => $guests->{$_}, type => 2}) )
+	push(@participants, Elive::Entity::Participant->new({guest => $_, role => $guests->{$_}, type => 2}) )
     }
 
     my %params;
@@ -389,9 +363,9 @@ L<Elive::Entity::Meeting>
 
 L<Elive::View::Session>
 
-L<Elive::Entity::ParticipantList::Participants>
+L<Elive::Entity::Participants>
 
-L<Elive::Entity::ParticipantList::Participant>
+L<Elive::Entity::Participant>
 
 =cut
 

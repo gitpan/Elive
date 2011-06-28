@@ -10,6 +10,7 @@ Elive::Entity::Group::Members - Group Members entity class
 use Mouse;
 use Mouse::Util::TypeConstraints;
 use Scalar::Util;
+use Elive::Util;
 
 use Elive::Entity::Group;
 
@@ -17,18 +18,51 @@ extends 'Elive::Array';
 __PACKAGE__->separator(',');
 __PACKAGE__->element_class('Elive::Entity::Group');
 
-coerce 'Elive::Entity::Group::Members' => from 'Str'
-          => via {
-	      my $a = [ split(__PACKAGE__->separator) ];
-	      bless ($a,__PACKAGE__);
-          };
+sub _build_array {
+    my $class = shift;
+    my $spec = shift;
 
-coerce 'Elive::Entity::Group::Members' => from 'ArrayRef'
+    my $type = Elive::Util::_reftype( $spec );
+
+    my @members;
+
+    if ($type eq 'ARRAY') {
+	@members = map {$class->__build_elem($_)} @$spec;
+    }
+    else {
+	@members = split($class->separator, Elive::Util::string( $spec ));
+    }
+
+    return \@members;
+}
+
+sub __build_elem {
+    my $class = shift;
+    my $elem = shift;
+
+    my $reftype = Elive::Util::_reftype($elem);
+
+    if ($reftype eq 'HASH') {
+	# blessed or unblessed user struct
+	if (exists $elem->{userId}) {
+	    return $elem->{userId};
+	}
+	elsif (exists $elem->{groupId}) {
+
+	    $elem = Elive::Entity::Group->new($elem)
+		unless Scalar::Util::blessed($elem);
+
+	    return $elem;
+	}
+    }
+
+    return Elive::Util::string($elem);
+}
+
+our $class = 'Elive::Entity::Group::Members';
+coerce $class => from 'ArrayRef|Str'
           => via {
-	      my @a = map {ref($_) && ! Scalar::Util::blessed($_)
-			       ? Elive::Entity::Group->new($_)
-			       : Elive::Util::string($_)} @$_;
-	      bless (\@a, __PACKAGE__);
+	      $class->new( $_ );
           };
 
 1;

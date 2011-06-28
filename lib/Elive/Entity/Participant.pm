@@ -1,4 +1,4 @@
-package Elive::Entity::ParticipantList::Participant;
+package Elive::Entity::Participant;
 use warnings; use strict;
 
 use Mouse;
@@ -16,11 +16,11 @@ use Elive::Entity::Role;
 
 =head1 NAME
 
-Elive::Entity::ParticipantList::Participant - A Single Meeting Participant
+Elive::Entity::Participant - A Single Meeting Participant
 
 =head1 DESCRIPTION
 
-This is a component of L<Elive::Entity::ParticipantList::Participants>. It
+This is a component of L<Elive::Entity::Participants>. It
 contains details on a participating user, including their details and
 participation role (normally 2 for a moderator or 3 for a regular participant).
 
@@ -57,7 +57,7 @@ has 'type' => (is => 'rw', isa => 'Int',
 	       documentation => 'type of participant; 0:user, 1:group, 2:guest'
     );
 
-sub _parse {
+sub BUILDARGS {
     my $class = shift;
     local ($_) = shift;
 
@@ -141,11 +141,11 @@ sub _parse {
     #
     # slightly convoluted die on return to keep Perl::Critic happy
     #
-    return die "'$_' not in format: userId=[0-4] or *groupId=[0-4] or guestName(guestLogin)";
+    return die "'$_' not in format: userId=[0-3] or *groupId=[0-3] or guestName(guestLogin)";
 }
 
-coerce 'Elive::Entity::ParticipantList::Participant' => from 'Str'
-    => via { __PACKAGE__->new( __PACKAGE__->_parse($_) ) };
+coerce 'Elive::Entity::Participant' => from 'Str'
+    => via { __PACKAGE__->new( $_) };
 
 =head2 participant
 
@@ -174,15 +174,15 @@ sub stringify {
     my $self = shift;
     my $data = shift || $self;
 
-    $data = $self->_parse($data)
-	unless Scalar::Util::refaddr($data);
+    $data = $self->BUILDARGS($data);
+
     if (! $data->{type} ) {
 	# user => 'userId'
 	return Elive::Entity::User->stringify($data->{user}).'='.Elive::Entity::Role->stringify($data->{role});
     }
     elsif ($data->{type} == 1) {
 	# group => '*groupId'
-	return '*' . Elive::Entity::Group->stringify($data->{group}).'='.Elive::Entity::Role->stringify($data->{role});
+	return Elive::Entity::Group->stringify($data->{group}).'='.Elive::Entity::Role->stringify($data->{role});
     }
     elsif ($data->{type} == 2) {
 	# guest => 'displayName(loginName)'
@@ -197,7 +197,7 @@ sub stringify {
 =head1 SEE ALSO
 
 L<Elive::Entity::ParticipantList>
-L<Elive::Entity::ParticipantList::Participants>
+L<Elive::Entity::Participants>
 L<Elive::Entity::User>
 L<Elive::Entity::Group>
 L<Elive::Entity::InvitedGues>;

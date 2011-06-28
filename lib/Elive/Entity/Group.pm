@@ -27,17 +27,45 @@ __PACKAGE__->_alias(entry => 'members');
 has 'dn' => (is => 'rw', isa => 'Str',
 	       documentation => 'LDAP Domain (where applicable)');
 
-coerce 'Elive::Entity::Group' => from 'HashRef'
-          => via {Elive::Entity::Group->construct($_,
-						 %Elive::_construct_opts) };
+sub BUILDARGS {
+    my $class = shift;
+    my $spec = shift;
 
-coerce 'Elive::Entity::Group' => from 'Str'
-          => via {
-	      my $group_id = $_;
-	      $group_id =~ s{^ \s* \* \s*}{}x;  # just in case leading '*' leaks through
+    my $args;
+    if ($spec && ! ref $spec) {
+	my $group_id = $_;
+	$group_id =~ s{^ \s* \* \s*}{}x;  # just in case leading '*' leaks
+	$args = {groupId => $group_id};
+    }
+    else {
+	$args = $spec;
+    }
 
-	      Elive::Entity::Group->construct({groupId => $group_id}, 
-					      %Elive::_construct_opts) };
+    return $args;
+}
+
+coerce 'Elive::Entity::Group' => from 'HashRef|Str'
+          => via {Elive::Entity::Group->new($_) };
+
+sub stringify {
+    my $class = shift;
+    my $data = shift;
+    $data ||= $class if (ref $class);
+
+    my $prefix = '';
+
+    if (Elive::Util::_reftype($data) eq 'HASH') {
+	if (exists $data->{userId}) {
+	    $data = $data->{userId}
+	}
+	elsif (exists $data->{groupId}) {
+	    $prefix = '*';
+	}
+    }
+
+    return $prefix . $class->SUPER::stringify($data, @_);
+
+}
 
 =head1 NAME
 
@@ -55,6 +83,16 @@ If the a site is configured for LDAP, groups are mapped to LDAP groups.
 Group access becomes read-only. The affected methods are: C<insert>, C<update>,
 and C<delete>.
 =cut
+
+sub _freeze {
+    my $class = shift;
+    my $app_data = shift;
+
+    $app_data = $class->SUPER::_freeze($app_data, @_);
+    $app_data->{groupId} =~ s{^\*}{} if $app_data->{groupId};
+
+    return $app_data;
+}
 
 sub _thaw {
     my $class = shift;
@@ -131,26 +169,30 @@ is further reduced to only include unique members.
 
 sub expand_members {
     my $self = shift;
+    my %seen = @_;
 
-    my %seen;
     my @members;
 
     foreach (@{ $self->members || []}) {
 	my @elements;
 
-	if (Scalar::Util::blessed($_) && $_->can('expand_members')) {
+	if (Scalar::Util::blessed($_)
+	    && $_->can('groupId')
+	    && $_->can('expand_members')) {
 	    # recursive expansion
-	    @elements = $_->expand_members;
+	    @elements = $_->expand_members(%seen)
+		unless $seen{g => $_->groupId}++;
 	}
 	else {
-	    @elements = Elive::Util::string($_);
+	    @elements = (Elive::Util::string($_));
 	}
 
 	foreach (@elements) {
-	    push(@members, $_) unless $seen{$_}++;
+	    push(@members, $_) unless $seen{u => $_}++;
 	}
     }
 
+    @members = sort @members;
     return @members;
 }
 

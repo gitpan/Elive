@@ -52,6 +52,60 @@ has 'data' => (is => 'rw', isa => 'Str',
 has 'isProtected' => (is => 'rw', isa => 'Bool');
 has 'isDataAvailable' => (is => 'rw', isa => 'Bool');
 
+sub BUILDARGS {
+    my $class = shift;
+    my $spec = shift;
+
+    my %args;
+
+    if ($spec && ! ref($spec) ) {
+	#
+	# Assume a single string arguments represents the local path of a file
+	# to be uploaded.
+	#
+	my $preload_path = $spec;
+
+	my $preload_basename = File::Basename::basename( $preload_path );
+	croak "unable to determine a basename for preload path: $preload_path"
+	    unless length $preload_basename;
+
+	open ( my $fh, '<', $preload_path)
+	    or die "unable to open preload file $preload_path";
+
+	$fh->binmode;
+	my $content = do {local $/; <$fh>};
+
+	close $fh;
+
+	die "upload file is empty: $preload_path"
+	    unless length $content;
+
+	%args = (
+	    name => $preload_basename,
+	    data => $content,
+	);
+    }
+    elsif (Elive::Util::_reftype($spec) eq 'HASH') {
+	%args = %$spec;
+    }
+    else {
+	croak 'usage: '.$class.'->new( filepath | {name => $filename, data => $binary_data, ...} )';
+    }
+
+    if ($args{data}) {
+	$args{size} ||= length( $args{data} );
+    }
+
+    die "unable to determine file name"
+	unless defined $args{name} && length $args{name};
+
+    $args{mimeType} ||= $class->_guess_mimetype($args{name});
+    $args{type} ||= ($args{name} =~ m{\.wbd$}ix     ? 'whiteboard'
+		     : $args{name} =~ m{\.elpx?$}ix ? 'plan'
+		     : 'media');
+
+    return \%args;
+}
 
 =head1 NAME
 
@@ -108,63 +162,24 @@ sub upload {
     my $connection = $opt{connection} || $class->connection
 	or die "not connected";
 
-    my %insert_data;
-
-    if ($spec && ! ref($spec) ) {
-	#
-	# Assume a single string arguments represents the local path of a file
-	# to be uploaded.
-	#
-	my $preload_path = $spec;
-
-	my $preload_basename = File::Basename::basename( $preload_path );
-	croak "unable to determine a basename for preload path: $preload_path"
-	    unless length $preload_basename;
-
-	open ( my $fh, '<', $preload_path)
-	    or die "unable to open preload file $preload_path";
-
-	$fh->binmode;
-	my $content = do {local $/; <$fh>};
-
-	close $fh;
-
-	die "upload file is empty: $preload_path"
-	    unless length $content;
-
-	%insert_data = (
-	    name => $preload_basename,
-	    data => $content,
-	);
-    }
-    else {
-
-	croak 'usage: $class->upload( filepath | {name => $filename, data => $binary_data, ...} )'
-	    unless Elive::Util::_reftype($spec) eq 'HASH'
-	    && $spec->{data} && $spec->{name};
-
-	%insert_data = %{ $spec };
-    }
-
-    my $binary_data = delete $insert_data{data};
-
-    $insert_data{length} ||= length($binary_data);
-    $insert_data{ownerId} ||= $connection->login;
+    my $insert_data = $class->BUILDARGS( $spec );
+    my $content = delete $insert_data->{data};
+    $insert_data->{ownerId} ||= $connection->login->userId;
     #
     # 1. create initial record
     #
-    my $self = $class->insert(\%insert_data, %opt);
+    my $self = $class->insert($insert_data, %opt);
 
-    if ($insert_data{length} && $binary_data) {
+    if ($self->size && $content) {
 	#
 	# 2. Now upload data to it
 	#
 	my $som = $connection->call('streamPreload',
 				    preloadId => $self->preloadId,
-				    length => $insert_data{length},
+				    length => $self->size,
 				    stream => (SOAP::Data
 					       ->type('hexBinary')
-					       ->value($binary_data)),
+					       ->value($content)),
 	    );
 
 	$connection->_check_for_errors($som);
@@ -223,14 +238,14 @@ extension using MIME::Types.
 =cut
 
 sub import_from_server {
-    my ($class, $insert_data, %opt) = @_;
+    my ($class, $spec, %opt) = @_;
 
-    my $params = $opt{param} || {};
+    my $insert_data = $class->BUILDARGS($spec);
 
     die "missing required parameter: fileName"
-	unless $insert_data->{fileName} || $params->{fileName};
+	unless $insert_data->{fileName};
 
-    $opt{command} ||= 'importPreload',;
+    $opt{command} ||= 'importPreload';
 
     return $class->insert($insert_data, %opt);
 }
@@ -268,11 +283,6 @@ sub _freeze {
 	$_ = File::Basename::basename($_)
 	    for $db_data->{name};
 
-	$db_data->{mimeType} ||= $class->_guess_mimetype($db_data->{name});
-	$db_data->{type}
-	||= ($db_data->{name} =~ m{\.wbd$}ix     ? 'whiteboard'
-	     : $db_data->{name} =~ m{\.elpx?$}ix ? 'plan'
-	     : 'media');
     }
 
     return $db_data;
@@ -343,7 +353,7 @@ sub _readback_check {
 
 =over 4
 
-=item -- Under Elluminate 9.6.0 and LDAP, you may need to abritrarily add a 'DomN:'
+=item -- Under Elluminate 9.6.0 and LDAP, you may need to arbitrarily add a 'DomN:'
 prefix to the owner ID, when creating or updating a meeting.
 
     $preload->ownerId('Dom1:freddy');

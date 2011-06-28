@@ -2,11 +2,13 @@ package Elive::Entity::Meeting;
 use warnings; use strict;
 
 use Mouse;
+use Mouse::Util::TypeConstraints;
 
 extends 'Elive::Entity';
 
 use Elive::Util;
 use Elive::Entity::Preload;
+use Elive::Entity::Preloads;
 use Elive::Entity::Recording;
 use Elive::Entity::MeetingParameters;
 use Elive::Entity::ServerParameters;
@@ -43,6 +45,9 @@ __PACKAGE__->params(
     userId => 'Str',
     userName => 'Str',
     );
+
+coerce 'Elive::Entity::Meeting' => from 'HashRef'
+          => via {Elive::Entity::Meeting->new($_) };
 
 # help out elive_query; expansion of 'select ** from meeting...'
 __PACKAGE__->derivable(
@@ -82,6 +87,7 @@ has  'allModerators' => (is => 'rw', isa => 'Bool',
 
 has  'restrictedMeeting' => (is => 'rw', isa => 'Bool',
 			     documentation => "Restricted meeting");
+__PACKAGE__->_alias(restricted => 'restrictedMeeting');
 
 has 'adapter' => (is => 'rw', isa => 'Str',
 		  documentation => 'adapter used to create the meeting/session. E.g.: "default", "standardv2"');
@@ -168,7 +174,7 @@ them yourself, E.g.:
 =item With Elluminate 9.5 onwards simply sets the I<deleted> property to true.
 
 Meetings, Meeting Parameters, Server Parameters and recordings remain
-accessable via the SOAP inteface.
+accessible via the SOAP interface.
 
 You'll need to remember to check for deleted meetings:
 
@@ -182,6 +188,19 @@ or filter them out when listing meetings:
 =back
 
 =cut
+
+sub delete {
+    my $self = shift;
+
+    $self->SUPER::delete(@_);
+
+    # update the object as well
+    if (my $db_data = $self->_db_data) {
+	$db_data->{deleted} = 1;
+    }
+
+    return $self->deleted(1);
+}
 
 =head2 list_user_meetings_by_date
 
@@ -355,8 +374,8 @@ sub is_moderator {
 }
 
 sub _readback_check {
-    my ($class, $updates_href, $rows, @args) = @_;
-    my %updates = %$updates_href;
+    my ($class, $updates_ref, $rows, @args) = @_;
+    my %updates = %$updates_ref;
 
     #
     # password not included in readback record - skip it

@@ -12,7 +12,6 @@ use Storable qw{dclone};
 use Carp;
 
 use Elive::Util;
-use Elive::Array;
 
 BEGIN {
     __PACKAGE__->mk_classdata('_entities' => {});
@@ -85,7 +84,7 @@ sub BUILDARGS {
 		    # object, rather than just its primary key.
 		    #
 		    $value = Elive::Util::string($value, $type)
-			unless  Elive::Util::inspect_type($type)->is_ref;
+			unless Elive::Util::inspect_type($type)->is_ref;
 		}		    
 	    }
 	    else {
@@ -109,20 +108,17 @@ sub stringify {
     my $class = shift;
     my $data = shift;
 
-    $data ||= $class
-	if ref($class);
+    $data = $class
+	if !defined $data && ref$class;
 
     return $data
-	unless Elive::Util::_reftype($data);
-
-    return unless $data;
+	unless $data && Elive::Util::_reftype($data);
 
     my $types = $class->property_types;
 
     my $string = join('/', map {Elive::Util::_freeze($data->{$_},
 						     $types->{$_})}
 		      $class->primary_key);
-
 
     return $string;
 }
@@ -346,18 +342,16 @@ sub _cmp_col {
     my $type_info = Elive::Util::inspect_type($data_type);
     my $array_type = $type_info->array_type;
     my $type = $type_info->elemental_type;
+    my $cmp;
 
     if ($array_type || $type_info->is_struct) {
 	#
 	# Note shallow comparision of entities and arrays.
 	#
 	my $t = $array_type || $type;
-	return $t->stringify($v1) cmp $t->stringify($v2);
+	$cmp = $t->stringify($v1) cmp $t->stringify($v2);
     }
-
-    my $cmp;
-
-    if ($type =~ m{^Ref}ix) {
+    elsif ($type =~ m{^Ref}ix) {
 	$cmp = YAML::Dump($v1) cmp YAML::Dump($v2);
     }
     else {
@@ -389,6 +383,14 @@ sub _cmp_col {
 	    Carp::croak "class $class: unknown type: $type\n";
 	}
     }
+
+    warn YAML::Dump {cmp => {result =>$cmp,
+			     class => $class,
+			     data_type => "$data_type",
+			     v1 => $v1,
+			     v2 => $v2
+		     }}
+    if ($class->debug||0) >= 5;
 
     return $cmp;
 }
@@ -516,7 +518,8 @@ is used internally to uniquely identify and cache objects across repositories.
 
 sub url {
     my $self = shift;
-    return $self->_url($self->connection, $self->stringify);
+    my $connection = shift || $self->connection;
+    return $self->_url($connection, $self->stringify);
 }
 
 =head2 construct
@@ -541,22 +544,25 @@ for use by the C<is_changed> and C<revert> methods.
 sub construct {
     my ($class, $data, %opt) = @_;
 
+    $data = $class->BUILDARGS($data) if $class->can('BUILDARGS');
+
     croak "usage: ${class}->construct( \\%data )"
 	unless (Elive::Util::_reftype($data) eq 'HASH');
 
-    #
-    # Ugly use of package globals!
-    #
+    do {
+	my %unknown_properties;
+	@unknown_properties{keys %$data} = undef;
+	delete $unknown_properties{$_} for ($class->properties);
+	my @unknown = sort keys %unknown_properties;
+	carp "$class - unknown properties: @unknown" if @unknown;
+    };
 
-    local (%Elive::_construct_opts) = %opt;
-
-    my %known_properties;
-    @known_properties{$class->properties} = undef;
-
-    warn YAML::Dump({construct => $data})
+    warn YAML::Dump({class => $class, construct => $data})
 	if (Elive->debug > 1);
 
-    my $self = Scalar::Util::blessed($data)
+    my $self;
+
+    $self = Scalar::Util::blessed($data)
 	? $data
 	: $class->new($data);
 
@@ -568,8 +574,6 @@ sub construct {
     die "can't construct objects without a connection"
 	unless $connection;
 
-    $self->connection($connection);
-
     my %primary_key_data = map {$_ => $data->{ $_ }} ($class->primary_key);
 
     foreach (keys %primary_key_data) {
@@ -578,27 +582,89 @@ sub construct {
 	}
     }
 
-    my $obj_url = $self->url;
-
-    if (my $cached = $Stored_Objects{ $obj_url }) {
-	#
-	# Overwrite the cached object, then reuse it.
-	#
-	die "attempted overwrite of object with unsaved changes ($obj_url)"
-	    if !$opt{overwrite} && $cached->is_changed;
-
-	%{$cached} = %{$self};
-	$self = $cached;
-    }
-    else {
-	weaken ($Stored_Objects{$obj_url} = $self);
-    }
-
     my $data_copy = Elive::Util::_clone($self);
-    $data_copy->_db_data(undef);
-    $self->_db_data( $data_copy );
+    return $self->__set_db_data($data_copy,
+				connection => $connection,
+				copy => $opt{copy},
+				overwrite => $opt{overwrite},
+	);
+}
 
-    return $self;
+sub __set_db_data {
+    my $struct = shift;
+    my $data_copy = shift;
+    my %opt = @_;
+
+    my $connection = $opt{connection};
+
+    my $type = Elive::Util::_reftype( $struct );
+
+    if ($type) {
+
+	# recurse
+	if ($type eq 'ARRAY') {
+	    foreach (0 .. scalar(@$struct)) {
+		$struct->[$_] = __set_db_data($struct->[$_], $data_copy->[$_], %opt)
+		    if ref $struct->[$_];
+	    }
+	}
+	elsif ($type eq 'HASH') {
+	    foreach (sort keys %$struct) {
+		$struct->{$_} = __set_db_data($struct->{$_}, $data_copy->{$_}, %opt)
+		    if ref $struct->{$_};
+	    }
+	}
+	else {
+	    warn "don't know how to set db data for sub-type $type";
+	}
+
+	if (Scalar::Util::blessed $struct) {
+	    if ($connection && $struct->can('connection')) {
+
+		if (!$opt{copy} && $struct->can('url')) {
+
+		    my $obj_url = $struct->url($connection);
+
+		    my $cache_access;
+
+		    if (my $cached = $Stored_Objects{ $obj_url }) {
+			$cache_access = 'reuse';
+			#
+			# Overwrite the cached object, then reuse it.
+			#
+			die "attempted overwrite of object with unsaved changes ($obj_url)"
+			    if !$opt{overwrite} && $cached->is_changed;
+
+			%{$cached} = %{$struct};
+			$struct = $cached;
+		    }
+		    else {
+			$cache_access = 'init';
+			weaken ($Stored_Objects{$obj_url} = $struct);
+		    }
+
+		    if ($struct->debug >= 5) {
+			warn YAML::Dump({opt => \%opt, struct => $struct, class => ref($struct), url => $obj_url, cache => $cache_access});
+		    }
+		}
+
+		$struct->connection( $connection );
+	    }
+
+	    if ($struct->can('_db_data')) {
+		#
+		# save before image from databse
+		#
+		$data_copy->_db_data(undef)
+		    if Scalar::Util::blessed($data_copy)
+		    && $data_copy->can('_db_data');
+
+		$struct->_db_data($data_copy);
+	    }
+	}
+    }
+
+    return $struct;
 }
 
 #
@@ -616,6 +682,8 @@ sub _freeze {
 
     my $property_types = $class->property_types || {};
     my %param_types = $class->params;
+
+    $class->_canonicalize_properties( $db_data );
 
     foreach (keys %$db_data) {
 
@@ -645,6 +713,20 @@ sub _freeze {
 	unless $opt{canonical};
 
     return $db_data;
+}
+
+sub _canonicalize_properties {
+    my $class = shift;
+    my $data = shift;
+
+    my %aliases = $class->_to_aliases;
+
+    for (grep {exists $data->{$_}} (keys %aliases)) {
+	my $att = $aliases{$_};
+	$data->{$att} = delete $data->{$_};
+    }
+
+    return $data;
 }
 
 sub __apply_freeze_aliases {
@@ -852,31 +934,30 @@ sub _process_results {
 }
 
 sub _readback_check {
-    my ($class, $updates, $rows, %opt) = @_;
+    my ($class, $updates_raw, $rows, %opt) = @_;
 
-    #
-    # Create and update responses generally return a copy of the
-    # record, after performing the update. This routine may be
-    # run to check that the expected updates have been applied
-    #
-    croak "Didn't receive a response".($opt{command}? ' for '.$opt{command}: '').' on '.$class->entity_name
-	unless @$rows;
+    my $updates = $class->_freeze( $updates_raw, canonical => 1);
 
-    foreach my $row (@$rows) {
+    warn YAML::Dump({class => $class, updates_raw => $updates_raw, updates => $updates})
+	if ($class->debug >= 5);
 
-	my $property_types = $class->property_types;
+    foreach my $row_raw (@$rows) {
+
+	my $row = $class->_freeze( $row_raw, canonical => 1);
+
+	warn YAML::Dump({row_raw => $row_raw, row => $row})
+	    if ($class->debug >= 5);
 
 	foreach ($class->properties) {
-
 	    if (exists $updates->{$_} && exists $row->{$_}) {
 		my $write_val = $updates->{$_};
 		my $read_val = $row->{$_};
-		my $property_type = $class->property_types->{$_};
 
-		if ($class->_cmp_col($property_type,
-				     $write_val,  $read_val, %opt)) {
+		if ($write_val ne $read_val) {
 
-		    warn YAML::Dump({read => $read_val, sent => $write_val})
+		    my $property_type = $class->property_types->{$_};
+
+		    warn YAML::Dump({read => $read_val, sent => $write_val, type => "$property_type"})
 			if ($class->debug >= 2);
 
 		    croak "${class}: Update consistancy check failed on $_ (${property_type}), sent:".Elive::Util::string($write_val, $property_type).", read-back:".Elive::Util::string($read_val, $property_type);
@@ -944,11 +1025,7 @@ sub set {
     my %entity_column = map {$_ => 1} ($self->properties);
     my %primary_key = map {$_ => 1} ($self->primary_key);
 
-    my %aliases = $self->_to_aliases;
-    for (grep {exists $data{$_}} (keys %aliases)) {
-	my $att = $aliases{$_};
-	$data{$att} = delete $data{$_};
-    }
+    $self->_canonicalize_properties( \%data );
  
     foreach (keys %data) {
 
@@ -1064,15 +1141,6 @@ sub insert {
     my %insert_data = %$insert_data;
     my %params = %{delete $opt{param} || {}};
 
-    #
-    # resolve any aliasas
-    #
-    my %aliases = $class->_to_aliases;
-    for (grep {exists $insert_data{$_}} (keys %aliases)) {
-	my $att = $aliases{$_};
-	$insert_data{$att} = delete $insert_data{$_};
-    }
-
     my $data_params = $class->_freeze({%insert_data, %params});
 
     my $command = $opt{command} || 'create'.$class->entity_name;
@@ -1097,7 +1165,7 @@ sub insert {
     my $user_ref
       = Elive::Entity->live_entity('http://test.org/User/1234567890');
 
-Returns a reference to an object in the Elive::Entity in-memory cache. 
+Returns a reference to an object in the Elive::Entity cache. 
 
 =cut
 
@@ -1114,7 +1182,7 @@ sub live_entity {
 
     my $user_ref = $live_entities->{'http://test.org/User/1234567890'};
 
-Returns a reference to the Elive::Entity in-memory cache. 
+Returns a reference to an object in the Elive::Entity cache. 
 
 =cut
 
@@ -1122,6 +1190,7 @@ sub live_entities {
     my $class = shift;
     return \%Stored_Objects;
 }
+
 
 =head2 update
 
@@ -1142,32 +1211,32 @@ to the object.
 =cut
 
 sub update {
-    my ($self, $_update_params, %opt) = @_;
+    my ($self, $_update_data, %opt) = @_;
 
     die "attempted to update deleted record"
 	if ($self->_deleted);
 
     my %params = %{ $opt{param} || {} };
-    my %update_params;
+    my %update_data;
 
-    if ($_update_params) {
+    if ($_update_data) {
 
 	croak 'usage: $obj->update( \%data )'
-	    unless (Elive::Util::_reftype($_update_params) eq 'HASH');
+	    unless (Elive::Util::_reftype($_update_data) eq 'HASH');
 
-	%update_params = %{ $_update_params };
+	%update_data = %{ $_update_data };
 	#
 	# sift out things which are included in the data payload, but should
 	# be parameters.
 	#
 	my %param_names = $self->params;
-	foreach (grep {exists $update_params{$_}} %param_names) {
-	    my $val = delete $update_params{$_};
+	foreach (grep {exists $update_data{$_}} %param_names) {
+	    my $val = delete $update_data{$_};
 	    $params{$_} = $val unless exists $params{$_};
 	}
 
-	$self->set( %update_params)
-	    if (keys %update_params);
+	$self->set( %update_data)
+	    if (keys %update_data);
     }
 
     #
@@ -1208,21 +1277,16 @@ sub update {
     my $class = ref($self);
 
     my @rows = $class->_readback($som, \%updates, $self->connection, %opt);
-    #
-    # refresh the object from the database read-back
-    #
-    $class->construct($rows[0], overwrite => 1, connection => $self->connection)
-	if (@rows && Elive::Util::_reftype($rows[0]) eq 'HASH');
 
-    #
-    # Save the db image
-    #
-    my $db_data = $self->construct(Elive::Util::_clone($self), copy => 1);
-    #
-    # Make sure our db data doesn't have db data!
-    #
-    $db_data->_db_data(undef);
-    $self->_db_data($db_data);
+    if (@rows && Elive::Util::_reftype($rows[0]) eq 'HASH') {
+	#
+	# refresh the object from the database read-back
+	#
+	my $obj = $self->construct($rows[0], connection => $self->connection, overwrite => 1);
+
+	$self->__set_db_data( Elive::Util::_clone($rows[0]), connection => $self->connection, copy => 1)
+	    unless (_refaddr($obj) eq _refaddr($self));
+    }
 
     return $self;
 }
@@ -1552,10 +1616,11 @@ sub DEMOLISH {
     my $class = ref($self);
 
     if (my $db_data = $self->_db_data) {
-	if (my @changed = $self->is_changed) {
+	if ((my @changed = $self->is_changed) && ! $self->_deleted) {
 	    my $self_string = Elive::Util::string($self);
 	    Carp::carp("$class $self_string destroyed without saving or reverting changes to: "
 		 . join(', ', @changed));
+
 	}
 	#
 	# Destroy this objects data
@@ -1566,12 +1631,14 @@ sub DEMOLISH {
 
 =head1 ADVANCED
 
-=head2 Object Reuse
+=head2 Object Management
 
-An in-memory object cache is used to maintain a single unique copy of
-each object for each entity instance. All references to an entity instance
-are unified. Hence, if you re-retrieve or re-construct the object, any other
-references to the object will see the updates.
+L<Elive::DAO> keeps a reference table to all current database objects. This
+is primarily used to detect errors, such as destroying or overwriting objects
+with unsaved changes.
+
+You can also reuse objects from this cache by passing C<reuse => 1> to the
+C<fetch> method. 
 
     my $user = Elive::Entity::User->retrieve([11223344]);
     #
@@ -1588,9 +1655,8 @@ methods.
 
 =head2 Entity Manipulation
 
-Through the magic of inside-out objects, all objects are simply blessed
-structures that contain data and nothing else. You may choose to use the
-accessors, or work directly with the object data.
+All objects are simply blessed structures that contain data and nothing else.
+You may choose to use the accessors, or work directly with the object data.
 
 The following are all equivalent, and are all ok:
 

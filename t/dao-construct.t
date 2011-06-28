@@ -1,6 +1,6 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 47;
+use Test::More tests => 53;
 use Test::Warn;
 
 use Carp; $SIG{__DIE__} = \&Carp::confess;
@@ -45,16 +45,20 @@ my $participant_list = Elive::Entity::ParticipantList->construct(
     );
 
 isa_ok($participant_list, 'Elive::Entity::ParticipantList', 'participant');
-is($participant_list->stringify, "123456", 'participant list stringified');
+is($participant_list->stringify, "123456", 'participant list stringifies to meeting id');
 
 can_ok($participant_list, 'meetingId');
 can_ok($participant_list, 'participants');
 
 my $participants = $participant_list->participants;
-isa_ok($participants, 'Elive::Entity::ParticipantList::Participants');
+isa_ok($participants, 'Elive::Entity::Participants');
 
 ok(@$participants == 3, 'all participants constructed');
-isa_ok($participants->[0], 'Elive::Entity::ParticipantList::Participant');
+isa_ok($participants->[0], 'Elive::Entity::Participant');
+is(Elive::Entity::Participants->stringify( [$participants->[0]] ),
+   '112233=2', 'one element array stringification');
+is(Elive::Entity::Participants->stringify( $participants->[0] ),
+   '112233=2', 'one element scalar stringification');
 
 $participants->add({
     user => {userId => 'late_comer',
@@ -64,7 +68,7 @@ $participants->add({
 });
 
 ok(@$participants == 4, 'participants added');
-isa_ok($participants->[-1], 'Elive::Entity::ParticipantList::Participant');
+isa_ok($participants->[-1], 'Elive::Entity::Participant');
 is($participants->[-1]->user->userId, 'late_comer', 'added participant value');
 
 $participant_list->revert;
@@ -111,12 +115,26 @@ is($participants_3->[0]->role->roleId , 3, 'participant list role (defaulted)');
 is($participants_3->[1]->user->userId , 2233, 'participant list user');
 is($participants_3->[1]->role->roleId , 2, 'participant list role (explicit)');
 
-my $member_list_1 = Elive::Entity::Group->construct(
-								   {
-        groupId => 54321,
-	name => 'group_1',
-        members => '212121,222222,fred'
-	});
+is_deeply(
+    Elive::Entity::ParticipantList->construct(
+	{meetingId => 234568, participants => ''}
+    ), {meetingId => 234568, participants => []}, 'empty participant string construction');
+
+is_deeply(
+    Elive::Entity::ParticipantList->construct(
+	{meetingId => 234569, participants => []}
+    ), {meetingId => 234569, participants => []}, 'empty participant array construction');
+
+is_deeply(
+    Elive::Entity::ParticipantList->construct(
+	{meetingId => 234570,}
+    ), {meetingId => 234570}, 'missing participants construction');
+
+my $member_list_1 = Elive::Entity::Group->construct(    
+    {        groupId => 54321,
+	     name => 'group_1',
+	     members => '212121,222222,fred'
+    });
 
 my $members_1 = $member_list_1->members;
 is($members_1->[0], 212121, 'member list user[0]');
@@ -167,6 +185,19 @@ my $participant_list_4 = Elive::Entity::ParticipantList->construct(
 
 is($participant_list_4->meetingId , $meeting->meetingId, "object => id cast on construct (primary key)");
 is($participant_list_4->participants->stringify, '1122=3;2233=2', "participants stringification");
+
+# try out some of the modifiers '-moderator', '-facilitator', '-other'
+my $participant_class = 'Elive::Entity::Participant';
+
+my $participant_list_5 = Elive::Entity::ParticipantList->construct(
+								   {
+        meetingId => $meeting,
+        participants => ['1122=2', '1123',
+                         -moderators => [2222, $participant_class->construct(2223)],
+			 -others => '3333', $participant_class->construct('3334=2'), ]
+	});
+
+is($participant_list_5->participants->stringify, '1122=2;1123=3;2222=2;2223=2;3333=3;3334=3', "participants stringification");
 
 do {
 

@@ -12,10 +12,9 @@ use Carp;
 
 use Elive;
 use Elive::Util;
-use Elive::Entity;
-use Elive::View::Session;
 use Elive::Entity::Preload;
 use Elive::Entity::User;
+use Elive::Entity::Participant;
 
 use URI;
 use URI::Escape;
@@ -26,28 +25,44 @@ elive_raise_meeting
 
 =head1 SYNOPSIS
 
-  elive_raise_meeting http://myserver.com/my-site[:port] userid[=role] [userid[=role]]...
-  elive_raise_meeting http://user:pass@myserver.com/my-site[:port] ...
+  elive_raise_meeting [url] [options] [participants]
 
-  Authentication
+  Authentication Options
 
     -user someAdminUser          # SDK/SOAP username
     -pass somePass               # SDK/SOAP password
 
-  Basic
+  Basic Options
 
     -facilitator  userId
     -name         'meeting name'
     -meeting_pass otherpass      # meeting password
     -start  '[YYYY-MM-DD ]HH:MM' # start time
     -end    '[YYYY-MM-DD ]HH:MM' # end time
-    -occurs {days|weeks}=n       # repeat the meeting over n days/weeks
+    -occurs {days|weeks}=n       # repeat the meeting over n days/weeks (elm2)
 
-  Meeting Settings
+  Moderators and Participants
+
+     -moderators user|*group|guest-name(guest-id) ...
+     -participants user|*group|guest-name(guest-id) ...
+
+     Where each participant or moderator can be:
+
+        'user'        - add this elluminate user. This can be either the
+                        user's username or user-id.
+
+        '*group'      - include all users from this group. This can be
+                        either the group-name or group-id.
+
+        'Display Name(loginName)
+                      - grant one-time access to this guest.
+
+  Meeting Setup Options
 
     -boundary     0|15|30|..     # minutes participants can arrive before or
                                  # leave after the scheduled meeting times.
     -max_talkers  n              # max no. of simultaneous talkers
+    -max_cameras  n              # max no. of simultaneous cameras (elm3)
     -recording    off|on|manual  # set recording status
                                  #  - off:    recording disabled
                                  #  - on:     starts automatically
@@ -55,20 +70,27 @@ elive_raise_meeting
     -seats        count          # number of seats to reserve on server
     -[no]invites                 # allow in-session invitations
     -[no]private                 # hide from public schedule
-    -[no]restricted              # only allow entry to registered users
+    -[no]restricted              # only allow entry to registered users (elm3)
     -[no]permissions             # let participants perform activities
     -[no]raise_hands             # automatically raise hands on entry
     -[no]supervised              # moderator can see private messages
 
-    -user_notes      'blurb1'
-    -moderator_notes 'blurb2'
+    -user_notes      'some text'
+    -moderator_notes 'some text'
     -cost_center     'code'
+    -exit_url=http://somesite.com  # URL to visit on meeting exit (elm3)
 
-  Preloads
+  Preload Options
 
     -upload              local_file     # upload a file from the client
     -import_from_server  remote_file    # import a server side file
-    -use_preload         preload_id     # reuse a preload from the database
+    -add_preload         preload_id,... # add existing preloads
+
+  Compatibility Options
+
+     -use elm2                  # ELM 2.x compat (via Elive::View::Session)
+     -use elm3                  # ELM 3.x compat (via Elive::Entity::Session)
+     -use Some::Custom::Class   # create session via a custom session class
 
   Information
 
@@ -87,6 +109,8 @@ Creates a meeting on an Elluminate I<Live!> server
 
 =cut
 
+my $class = 'Elive::Entity::Session';
+
 my $username;
 my $password;
 my $debug;
@@ -95,7 +119,8 @@ my $start_str;
 my $end_str;
 my $meeting_name = 'elive test meeting';
 my $meeting_password;
-my $max_talkers = 1;
+my $max_talkers;
+my $max_cameras;
 my $recording = 'remote';
 my $raise_hands;
 my $import;
@@ -113,6 +138,10 @@ my $invites;
 my $moderator_notes;
 my $user_notes;
 my $cost_center;
+my @moderators;
+my @participants;
+my $exit_url;
+
 my %occurs;
 my $version;
 
@@ -129,8 +158,11 @@ sub main {
 	'facilitator|moderator=s' => \$facilitator_id,
 	'start=s' => \$start_str,
 	'end=s' => \$end_str,
+	'moderators|moderator=s{,}' => \@moderators,
+	'participants|participant|others|other=s{,}' => \@participants,
 	'meeting_password|meeting_pass=s' => \$meeting_password,
 	'max_talkers=i' => \$max_talkers,
+	'max_cameras=i' => \$max_cameras,
 	'raise_hands!' => \$raise_hands,
 	'private!' => \$private,
 	'restricted!' => \$restricted,
@@ -140,7 +172,7 @@ sub main {
 	'help|?' => \$help,
 	'upload=s' => \$upload,
 	'import_from_server=s' => \$import,
-	'use_preload=i' => \$preload_opt,
+	'add_preload|use_preload=i' => \$preload_opt,
 	'recording=s' => \$recording,
 	'boundary=i' => \$boundary,
 	'seats=i' => \$seats,
@@ -150,6 +182,8 @@ sub main {
 	'user_notes=s' => \$user_notes,
 	'moderator_notes=s' => \$moderator_notes,
 	'cost_center|cost_centre=s' => \$cost_center,
+	'use=s' => \$class,
+	'exit_url=s' => \$exit_url,
     )
 	or die pod2usage(1);
 
@@ -164,6 +198,15 @@ sub main {
 	or pod2usage("missing url argument");
 
     $recording = lc($recording);
+
+    $class = {elm2 => 'Elive::View::Session',
+	      elm3 => 'Elive::Entity::Session'}->{$class} || $class;
+
+    my $can_insert = eval "use $class";
+    die "unable to load class $class: $@" if $@;
+
+    die "class $class: does not implement the 'insert' method"
+	unless eval{ $class->can('insert') };
     #
     # accept some of the other symonymns for the various modes as
     # seen in documentation and elluminate's web interface.
@@ -226,70 +269,52 @@ sub main {
 	? _get_user($facilitator_id)
 	: Elive->login;
 
-    my @participants;
+    $facilitator_id ||= $facilitator->userId;
+    #
+    # Ensure that the facilitator is included as a moderator, but not as
+    # a regular participant
+    #
+    push (@moderators, $facilitator_id)
+	unless grep {$_ eq $facilitator_id} @moderators;
+
+    @participants = grep {$_ ne $facilitator_id} @participants;
+
+    # participants can also be passed in argv (old usage)
+    my @args = grep {$_ ne $facilitator_id} @ARGV;
+
+    my @participants = (
+	parse_participants(\@moderators, role => 2),
+	parse_participants(\@participants, role => 3),
+	parse_participants(\@args),
+	);
+    #
+    # collate by type
+    #
+    my @users;
     my @groups;
+    my @guests;
 
-    foreach my $spec (map {split(';',$_)} @ARGV) {
+    foreach my $participant (@participants) {
 
-	#
-	# parse participant specs: user[=roleId]
-	#
-	my $user_spec;
-	my $role;
+	my $type = $participant->type;
 
-	my $is_group = ($spec =~ s{^ \s* \*}{}gx);
-
-	if (($user_spec, $role) = ($spec =~ m{^\s*([^=]*)=([^=]+)$}x)) {
-	    die "non-numeric role: $spec\n"
-		unless $role =~ m{^\d+$}x;
+	if (! $type ) {
+	    push (@users, $participant);
+	}
+	elsif ($type == 1) {
+	    push (@groups, $participant);
+	}
+	elsif ($type == 2) {
+	    push (@guests, $participant); 
 	}
 	else {
-	    $user_spec = $spec;
-	}
-
-	$role = 3 unless defined $role;
-
-	die "role ($role) not in range 0-3: $spec\n"
-	    unless ($role >= 0 && $role <= 3);
-
-	die "null username: $spec\n"
-	    if ($user_spec eq '');
-
-	#
-	# Ignore the facilitator. we're going to add them later
-	#
-	next if ($user_spec eq $facilitator->userId
-		 || $user_spec eq $facilitator->loginName);
-
-	if ($is_group) {
-	    push (@groups, 
-		  {
-		      group => $user_spec,
-		      role => $role,
-		      type => 1,
-		  },
-		);
-	}
-	else {
-	    push (@participants, 
-		  {
-		      user => $user_spec,
-		      role => $role,
-		      type => 0,
-		  },
-		);
+	    warn "don't know how to handle participant type: $type";
 	}
     }
-
-    #
-    # Include the facilitator as a moderator/participant.
-    #
-    push (@participants, {user => $facilitator->userId, role => 2});
-
     #
     # Vet participants
     #
-    @participants = _get_users(@participants) if @participants;
+    @users = _get_users(@users) if @users;
     @groups = _get_groups(@groups) if @groups;
 
     my %session_data = (
@@ -311,6 +336,9 @@ sub main {
 
     $session_data{maxTalkers}  = $max_talkers
 	if defined $max_talkers;
+
+    $session_data{videoWindow}  = $max_cameras
+	if defined $max_cameras;
 
     $session_data{raiseHandOnEnter} = $raise_hands
 	if defined $raise_hands;
@@ -336,21 +364,18 @@ sub main {
     $session_data{cost_center} = $cost_center
 	if defined $cost_center;
 
-    if (defined $restricted) {
-	if ($server_version_num < '9999.007001') {
-	    warn "[-restricted option ignored: Not supported by Elluminate Live!]\n";
-	}
-	else {
-	    $session_data{restrictedMeeting} = $restricted;
-	}
-    }
+    $session_data{restrictedMeeting} = $restricted
+	if defined $restricted;
+
+    $session_data{redirectURL} = $exit_url
+	if $exit_url;
 
     if ($recurrence_count > 1) {
 	$session_data{recurrenceCount} = $recurrence_count;
 	$session_data{recurrenceDays} = $recurrence_days || 1;
     }
 
-    $session_data{participants} = [@participants, @groups];
+    $session_data{participants} = [@users, @groups, @guests];
 
     my $uploaded_preload;
     $uploaded_preload = Elive::Entity::Preload->upload($upload)
@@ -386,13 +411,14 @@ sub main {
     my @preloads = grep {$_} ($existing_preload, $uploaded_preload, $imported_preload);
 
     $session_data{add_preload} = \@preloads if @preloads;
+    my $ptmp = Elive::Entity::Participants->new($session_data{participants});
 
-    my @sessions = Elive::View::Session->insert(\%session_data);
+    my @sessions = $class->insert(\%session_data);
 
     foreach my $session (@sessions) {
 	print "created meeting: ".$session->name." with id ".$session->sessionId."\n";
 
-	if (@participants || @groups) {
+	if (@users || @groups || @guests) {
 
 	    show_participants($session);
 
@@ -409,6 +435,33 @@ sub main {
     return @sessions;
 }
 
+sub parse_participants {
+    my $spec = shift;
+    my %opt = @_;
+
+    my @participants;
+
+    foreach my $spec (map {split(';',$_)} @$spec) {
+
+	my $participant = eval {
+	    Elive::Entity::Participant->new($spec)
+	};
+
+	if ($@) {
+	    warn "$@\n";
+	    next;
+	}
+	#
+	# Ignore the facilitator. we're going to add them later
+	#
+	$participant->role( $opt{role} ) if $opt{role};
+
+	push (@participants, $participant);
+    }
+
+    return @participants;
+}
+
 ########################################################################
 
 sub show_participants {
@@ -417,26 +470,41 @@ sub show_participants {
     my $participant_objs = $session->participants;
 
     my @participants_display = map  {
-	if ($_->type) {
-	    my $group_obj = $_->group;
-	    my $id = $group_obj->groupid;
-	    my $name = $group_obj->name;
+	my $type = $_->type;
+	my $str;
 
-	    my $participant_str = '*'.$id;
-	    $participant_str .= ' <group:'.$name.'>'
-		if $name;
-	}
-	else {
+	if (! $type)  {
 	    my $user_obj = $_->user;
 	    my $loginName = $user_obj->loginName;
 	    my $email = $user_obj->email;
 
-	    my $participant_str = ($loginName || $user_obj->userId);
-	    $participant_str .= ' <'.$email.'>'
+	    $str = ($loginName || $user_obj->userId);
+	    $str .= ' <'.$email.'>'
 		if $email;
-
-	    $participant_str;
 	}
+	elsif ($type == 1) {
+	    my $group_obj = $_->group;
+	    my $id = $group_obj->groupId;
+	    my $name = $group_obj->name;
+
+	    $str = '*'.$id;
+	    $str .= ' <group:'.$name.'>'
+		if $name;
+	}
+	elsif ($type == 2) {
+	    my $guest_obj = $_->guest;
+	    my $loginName = $guest_obj->loginName;
+	    my $displayName = $guest_obj->displayName;
+
+	    $str = $displayName;
+	    $str .= ' ('.$loginName.')'
+		if $loginName;
+	}
+	else {
+	    warn "unknown participant type $type: ignored";
+	    $str = ''
+	}
+	$str;
     } @$participant_objs;
 
     print "participants: ".join(', ', @participants_display)."\n";
@@ -446,50 +514,47 @@ sub show_participants {
 ########################################################################
 
 sub _get_users {
-    my @participants_in = @_;
+    my @users_in = @_;
 
-    my %user_roles;
+    my %users;
 
-    foreach (@participants_in) {
-
-	my $user = $_->{user};
-	my $role = $_->{role};
+    foreach (@users_in) {
+	my $user = Elive::Entity::User->stringify($_->user);
 	
 	die "bad username: $user\n"
 	    if $user =~ m{'}x;
 
-	$user_roles{$user} = $role || 3;
+	$users{$user} = $_;
     }
 
     my $filter = join(' OR ',
 		      map {sprintf("loginName='%s' OR userId='%s'",
 				   $_, $_)}
-		      (keys %user_roles)
+		      (keys %users)
 	);
 
-    my $users = Elive::Entity::User->list(filter => $filter);
+    my $db_users = Elive::Entity::User->list(filter => $filter);
+    my @users_out;
 
-    my @participants_out;
+    foreach my $user (@$db_users) {
 
-    foreach my $user (@$users) {
+	my $obj1 = delete $users{$user->loginName};
+	my $obj2 =  delete $users{$user->userId};
+	my $obj = $obj1 || $obj2;
 
-	my $role = delete($user_roles{$user->loginName})
-	    || delete($user_roles{$user->userId});
-
-	if ($role) {
-	    push (@participants_out, {user => $user->userId,
-				      role => $role,
-				      type => 0,
-		  });
+	if ($obj) {
+	    # replace with db user
+	    $obj->user( $user );
+	    push (@users_out, $obj);
 	}
     }
 
-    my @users_not_found = keys %user_roles;
+    my @users_not_found = keys %users;
 
     die "unknown user(s): @users_not_found\n"
 	if @users_not_found;
 
-    return @participants_out;
+    return @users_out;
 }
 
 ########################################################################
@@ -497,43 +562,39 @@ sub _get_users {
 sub _get_groups {
     my @groups_in = @_;
 
-    my %group_roles;
+    my %groups;
 
     foreach (@groups_in) {
 
-	my $group = $_->{group};
-	my $role = $_->{role};
-	
-	die "bad groupname: $group\n"
-	    if $group =~ m{'}x;
+	my $group_spec = Elive::Entity::Group->stringify($_->group);
+	$group_spec =~ s{^\*}{};
 
-	$group_roles{$group} = $role || 3;
+	$groups{$group_spec} = $_;
     }
 
     my $filter = join(' OR ',
 		      map {sprintf("groupId='%s' OR groupName='%s'",
 				   $_, $_)}
-		      (keys %group_roles)
+		      (keys %groups)
 	);
 
-    my $groups = Elive::Entity::Group->list(filter => $filter);
+    my $db_groups = Elive::Entity::Group->list(filter => $filter);
 
     my @groups_out;
 
-    foreach my $group (@$groups) {
+    foreach my $group (@$db_groups) {
 
-	my $role = delete($group_roles{$group->groupId})
-	    || delete($group_roles{$group->groupName});
+	my $obj1 = delete $groups{$group->groupId};
+	my $obj2 = delete $groups{$group->groupName};
+	my $obj = $obj1 || $obj2;
 
-	if ($role) {
-	    push (@groups_out, {group => $group->groupId,
-			       role => $role,
-			       type => 1,
-		  });
+	if ($obj) {
+	    $obj->group($group);
+	    push (@groups_out, $obj)
 	}
     }
 
-    my @groups_not_found = keys %group_roles;
+    my @groups_not_found = keys %groups;
 
     die "unknown group(s): @groups_not_found\n"
 	if @groups_not_found;

@@ -9,6 +9,9 @@ extends 'Elive::Entity';
 __PACKAGE__->entity_name('MeetingParameters');
 __PACKAGE__->_isa('Meeting');
 
+coerce 'Elive::Entity::MeetingParameters' => from 'HashRef'
+          => via {Elive::Entity::MeetingParameters->new($_) };
+
 has 'meetingId' => (is => 'rw', isa => 'Int', required => 1,
     documentation => 'associated meeting');
 __PACKAGE__->primary_key('meetingId');
@@ -46,8 +49,10 @@ __PACKAGE__->_alias('invites' => 'inSessionInvitation');
 
 has 'followModerator'  => (is => 'rw', isa => 'Bool',
 			   documentation => 'Whiteboard slides are locked to moderator view');
+
 has 'videoWindow'  => (is => 'rw', isa => 'Int',
 		       documentation => 'Max simultaneous cameras');
+__PACKAGE__->_alias('max_cameras' => 'videoWindow');
 
 has 'recordingObfuscation'  => (is => 'rw', isa => 'Bool');
 has 'recordingResolution'  => (is => 'rw', isa => 'Str',
