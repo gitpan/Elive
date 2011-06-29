@@ -132,7 +132,7 @@ Updates a previously created session.
 
 sub update {
     my $self = shift;
-    my %data = %{ shift() };
+    my %data = %{ shift() || {} };
     my %opts = @_;
 
     my $preloads = delete $data{add_preload};
@@ -230,7 +230,7 @@ sub derivable {
 
 =head1 SEE ALSO
 
-    L<Elive::Entity::Session>  (the base class).
+L<Elive::Entity::Session>  (the base class).
 
 =cut
 
