@@ -1,5 +1,5 @@
 ---
-abstract: 'Elluminate Live (c) Command Toolkit bindings'
+abstract: 'Elluminate Live! (c) Command Toolkit bindings'
 author:
   - 'David Warring <david.warring@gmail.com>'
 build_requires:
@@ -18,7 +18,6 @@ license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
-module_name: Elive
 name: Elive
 no_index:
   directory:
@@ -51,8 +50,8 @@ requires:
   XML::Simple: 0
   YAML: 0
   parent: 0
-  perl: 5.005
+  perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 0.97
+version: 0.98
