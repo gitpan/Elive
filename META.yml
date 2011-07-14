@@ -18,6 +18,7 @@ license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
+module_name: Elive
 name: Elive
 no_index:
   directory:
@@ -38,20 +39,21 @@ requires:
   MIME::Base64: 0
   MIME::Types: 0
   Mouse: 0.81
-  Pod::Usage: 0
+  Pod::Usage: 1.36
   SOAP::Lite: 0.712
   Scalar::Util: 0
   Storable: 0
   Term::ReadKey: 0
   Term::ReadLine: 0
   Time::Local: 0
+  Try::Tiny: 0
   URI: 0
   URI::Escape: 0
   XML::Simple: 0
   YAML: 0
   parent: 0
-  perl: 5.8.1
+  perl: 5.8.3
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 0.98
+version: 0.99

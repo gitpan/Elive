@@ -367,15 +367,12 @@ sub insert {
 
     my $participants = Elive::Entity::Participants->new( $data{participants} );
 
-    my $facilitatorId = $data{facilitatorId} || $connection->login->userId;
+    $data{facilitatorId} ||= $connection->login->userId;
+    my $facilitatorId = $data{facilitatorId};
+
     $participants->add(-moderators => $facilitatorId);
 
     $data{participants} = $participants->tidied;
-
-    # todo - recurrring meetings, telephony
-
-    die "recurring meetings not supported"
-	if $data{recurrenceCount} || $data{recurrenceDays};
 
     my @objs = $class->SUPER::insert( \%data, command => 'createSession', %opt );
     return wantarray? @objs : $objs[0];
@@ -767,7 +764,7 @@ A single preload can be shared between sessions:
     $session2->add_preload( $preload );
 
 Attempting to add the same preload to a session more than once is considered
-an error. The C<check_preload> method might help here>
+an error. The C<check_preload> method might help here.
 
     $session->add_preload( $preload )
         unless $session->check_preload( $preload );
@@ -839,11 +836,11 @@ For more information, please see L<Elive::Entity::Recording>.
 The C<create> command has a number of additional parameters that can assist
 with setting up blocks of recurring meetings:
 
-=head3 until C<HiResDate>
+=head3 until C<(HiResDate)>
 
 Repeat session until this date.
 
-=head3 repeatEvery C<Int>
+=head3 repeatEvery C<(Int)>
 
 Repeat session type:
 
@@ -861,15 +858,15 @@ Repeat session type:
 
 =back
 
-=head3 repeatSessionInterval C<Int>
+=head3 repeatSessionInterval C<(Int)>
 
 Repeat the session every X days|days depending of repeatEvery value.
 
-=head3 repeatSessionMonthlyInterval C<Int>
+=head3 repeatSessionMonthlyInterval C<(Int)>
 
 Week of the month session should be scheduled in.
 
-=head3 repeatSessionMonthlyDay C<Int>
+=head3 repeatSessionMonthlyDay C<(Int)>
 
 Day of the week the monthly session should be scheduled in.
 

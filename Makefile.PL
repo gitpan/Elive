@@ -5,6 +5,7 @@ use warnings;
 use inc::Module::Install;
 
 name           ('Elive');
+module_name    ('Elive');
 author         ('David Warring <david.warring@gmail.com>');
 all_from       ('lib/Elive.pm');
 license	       ('perl');
@@ -23,7 +24,7 @@ requires(
     'MIME::Types'                  => 0,
     'MIME::Base64'                 => 0,
     'Mouse'                        => 0.81,
-    'Pod::Usage'                   => 0,  # for elive_raise_meeting
+    'Pod::Usage'                   => 1.36,  # for elive_raise_meeting
     'parent'                       => 0,
     'Scalar::Util'                 => 0,
     'SOAP::Lite'                   => 0.712,
@@ -31,6 +32,7 @@ requires(
     'Term::ReadKey'                => 0,
     'Term::ReadLine'               => 0,
     'Time::Local'                  => 0,
+    'Try::Tiny'                    => 0,
     'URI'                          => 0,
     'URI::Escape'                  => 0,
     'YAML'                         => 0,

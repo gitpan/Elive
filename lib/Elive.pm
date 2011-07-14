@@ -7,20 +7,20 @@ Elive - Elluminate Live! (c) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 0.98
+Version 0.99
 
 =cut
 
-our $VERSION = '0.98';
+our $VERSION = '0.99';
 
-use 5.008001;
+use 5.008003;
 
 use parent qw{Class::Data::Inheritable};
 use Scalar::Util;
 
 use YAML;
-
 use Carp;
+use Try::Tiny;
 
 =head1 EXAMPLE
 
@@ -116,8 +116,8 @@ sub connect {
     die "usage: ${class}->new(url, [login_name] [, pass])"
 	unless ($class && $url);
 
-    eval {require Elive::Connection};
-    die $@ if $@;
+    try {require Elive::Connection};
+    catch { die $_};
 
     my $connection = Elive::Connection->connect(
 	$url,
@@ -219,6 +219,16 @@ sub debug {
 }
 
 our %Meta_Data;
+
+#
+# create metadata properties. NB this will be stored inside out to
+# ensure our object is an exact image of the data.
+#
+
+sub _refaddr {
+    my $self = shift;
+    return Scalar::Util::refaddr( $self );
+}
 
 =head2 has_metadata
 

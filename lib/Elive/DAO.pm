@@ -10,6 +10,7 @@ use YAML;
 use Scalar::Util qw{weaken};
 use Storable qw{dclone};
 use Carp;
+use Try::Tiny;
 
 use Elive::Util;
 
@@ -24,7 +25,7 @@ BEGIN {
     __PACKAGE__->mk_classdata('_isa');
 };
 
-foreach my $accessor (qw/_connection _db_data _deleted/) {
+foreach my $accessor (qw{_connection _db_data _deleted _is_copy}) {
     __PACKAGE__->has_metadata($accessor);
 }
 
@@ -40,16 +41,6 @@ datastore.
 =cut
 
 our %Stored_Objects;
-
-#
-# create metadata properties. NB this will be stored inside out to
-# ensure our object is an exact image of the data.
-#
-
-sub _refaddr {
-    my $self = shift;
-    return Scalar::Util::refaddr( $self );
-}
 
 sub BUILDARGS {
     my ($class, $raw, @args) = @_;
@@ -566,13 +557,8 @@ sub construct {
 	? $data
 	: $class->new($data);
 
-    return $self if ($opt{copy});
-
     my $connection = delete $opt{connection} || $class->connection
 	or die "not connected";
-
-    die "can't construct objects without a connection"
-	unless $connection;
 
     my %primary_key_data = map {$_ => $data->{ $_ }} ($class->primary_key);
 
@@ -582,10 +568,12 @@ sub construct {
 	}
     }
 
+    $self->_is_copy(1)
+	if $opt{copy};
+
     my $data_copy = Elive::Util::_clone($self);
     return $self->__set_db_data($data_copy,
 				connection => $connection,
-				copy => $opt{copy},
 				overwrite => $opt{overwrite},
 	);
 }
@@ -600,6 +588,15 @@ sub __set_db_data {
     my $type = Elive::Util::_reftype( $struct );
 
     if ($type) {
+
+	if (Scalar::Util::blessed $struct
+	    && $struct->can('_is_copy')) {
+
+	    $opt{copy} ||=  $struct->_is_copy;
+
+	    $struct->_is_copy(1)
+		if $opt{copy};
+	}  
 
 	# recurse
 	if ($type eq 'ARRAY') {
@@ -640,11 +637,13 @@ sub __set_db_data {
 		    }
 		    else {
 			$cache_access = 'init';
-			weaken ($Stored_Objects{$obj_url} = $struct);
 		    }
 
+		    # rewrite, for benefit of 5.13.3
+		    weaken ($Stored_Objects{$obj_url} = $struct);
+
 		    if ($struct->debug >= 5) {
-			warn YAML::Dump({opt => \%opt, struct => $struct, class => ref($struct), url => $obj_url, cache => $cache_access});
+			warn YAML::Dump({opt => \%opt, struct => $struct, class => ref($struct), url => $obj_url, cache => $cache_access, ref1 => "$struct", ref2 => "$Stored_Objects{$obj_url}"});
 		    }
 		}
 
@@ -991,6 +990,7 @@ sub is_changed {
     }
 
     my @props = $self->properties;
+    my $property_types = $self->property_types;
 
     foreach my $prop (@props) {
 
@@ -998,7 +998,7 @@ sub is_changed {
 	my $old = $db_data->$prop;
 
 	if (defined ($new) != defined ($old)
-	    || $self->_cmp_col($self->property_types->{$prop}, $new, $old)) {
+	    || $self->_cmp_col($property_types->{$prop}, $new, $old)) {
 
 	    push (@updated_properties, $prop);
 	}
@@ -1191,7 +1191,6 @@ sub live_entities {
     return \%Stored_Objects;
 }
 
-
 =head2 update
 
 Abstract method to update entities. The following commits outstanding changes
@@ -1283,12 +1282,14 @@ sub update {
 	#
 	# refresh the object from the database read-back
 	#
-	my $cached_obj = $self->construct($rows[0], connection => $self->connection, overwrite => 1);
+	my $obj = $self->construct($rows[0], connection => $self->connection, overwrite => 1, copy => $self->_is_copy);
 
-	unless (_refaddr($cached_obj) eq _refaddr($self)) {
+	unless (_refaddr($obj) eq _refaddr($self)) {
+	    warn $obj->url." (obj=$obj, self=$self) - not in cache, nor is it a copy."
+		unless $self->_is_copy;
 	    # clone the result
-	    %{$self} = %{ Elive::Util::_clone($cached_obj) };
-	    $self->__set_db_data( Elive::Util::_clone($cached_obj->_db_data), connection => $self->connection, copy => 1);
+	    %{$self} = %{ Elive::Util::_clone($obj) };
+	    $self->__set_db_data( Elive::Util::_clone($obj->_db_data), connection => $self->connection, copy => 1);
 	}
     }
 
@@ -1579,9 +1580,9 @@ sub can {
 
     my $subref;
 
-    unless ($subref = eval{ $class->SUPER::can($method) }) {
+    unless ($subref = try { $class->SUPER::can($method) }) {
 
-	my $aliases = eval{ $class->_aliases };
+	my $aliases = try { $class->_aliases };
 
 	if ($aliases && $aliases->{$method}
 	    && (my $alias_to = $aliases->{$method}{to})) {
@@ -1619,8 +1620,8 @@ sub DEMOLISH {
     my ($self) = shift;
     my $class = ref($self);
 
-    warn "DEMOLISH $self: db_data=".($self->_db_data||'(null)').', blessed='.(Scalar::Util::blessed($self->_db_data)?'Y':'N')."\n"
-	if ($self->debug||0) >= 6;
+    warn 'DEMOLISH '.$self->url.': db_data='.($self->_db_data||'(null)')."\n"
+	if ($self->debug||0) >= 5;
 
     if (my $db_data = $self->_db_data) {
 	if ((my @changed = $self->is_changed) && ! $self->_deleted) {
@@ -1628,6 +1629,8 @@ sub DEMOLISH {
 	    Carp::carp("$class $self_string destroyed without saving or reverting changes to: "
 		 . join(', ', @changed));
 
+	    use YAML; warn YAML::Dump {self => $self, db_data => $db_data}
+	    if ($self->debug||0) >= 6;
 	}
 	#
 	# Destroy this objects data
