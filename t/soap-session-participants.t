@@ -1,6 +1,6 @@
 #!perl
 use warnings; use strict;
-use Test::More tests => 29;
+use Test::More tests => 28;
 use Test::Exception;
 use Test::Builder;
 
@@ -27,7 +27,7 @@ SKIP: {
     my %result = t::Elive->test_connection( only => 'real');
     my $auth = $result{auth};
 
-    skip ($result{reason} || 'skipping live tests', 29)
+    skip ($result{reason} || 'skipping live tests', 28)
 	unless $auth;
 
     my $connection_class = $result{class};
@@ -139,8 +139,7 @@ SKIP: {
 		  }, 'setting up a larger session - lives');
     }
     else {
-	$t->skip('insufficient users to run large session tests')
-	    for 1 .. 10;
+	$t->skip('insufficient users to run large session tests');
     }
 
     ok($session->is_participant( Elive->login), 'is_participant($moderator)');
@@ -181,12 +180,10 @@ SKIP: {
 	# The next test verifies bug fixes under ELM 3.3.4/10.0.2. It probably wont
 	# work with 10.0.1 or earlier.
 	#
-	$t->skip('skipping participant long-list test for Elluminate < v10.0.2')
-	    for (1..2);
+	$t->skip('skipping participant long-list test for Elluminate < v10.0.2');
     }
     elsif ( !$participant2 )  {
-	$t->skip('not enough participants to run long-list test')
-	    for (1..2);
+	$t->skip('not enough participants to run long-list test');
     }
     else { 
 	#
@@ -250,8 +247,7 @@ SKIP: {
 	lives_ok(sub {$session->update({ participants => [$group, $participant1, $invited_guest]})}, 'setting of participant groups - lives');
     }
     else {
-	$t->skip('no candidates found for group tests')
-	    for (1 .. 2);
+	$t->skip('no candidates found for group tests');
     }
 
     #

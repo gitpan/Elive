@@ -21,10 +21,8 @@ Elive::Entity::Session - Session insert/update via ELM 3.x (TRIAL)
 
 =head1 DESCRIPTION
 
-Elive::Entity::Session is under construction as a likely successor to
-L<Elive::View::Session>. It implements the C<createSession> and
-C<updateSession> commands, introduced with ELM (Elluminate I<Live!> Manager)
-3.0.
+Elive::Entity::Session creates and modifies meetings via the C<createSession>
+and C<updateSession> commands, introduced with Elluminate Live! Manager 3.0.
 
 =cut
 
@@ -819,7 +817,7 @@ any need to close or exit the session.
 Also note that recordings are not deleted, when you delete sessions. If you
 want to delete associated recordings when you delete sessions:
 
-    my $recordings = $session->recordings;
+    my $recordings = $session->list_recordings;
     $session->delete;
     $_->delete for (@$recordings);
 
