@@ -7,11 +7,11 @@ Elive - Elluminate Live! (c) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 1.00
+Version 1.01
 
 =cut
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 use 5.008003;
 
@@ -30,31 +30,32 @@ participants:
     use Elive;
     use Elive::Entity::User;
     use Elive::Entity::Preload;
-    use Elive::View::Session;
+    use Elive::Entity::Session;
 
     my $meeting_name = 'Meeting of the Smiths';
 
-    Elive->connect('http://someEllumServer.com/test',
+    Elive->connect('http://someEllumServer.com/my_instance',
                    'serversupport', 'mypass');
 
-    my $participants = Elive::Entity::User->list(filter => "(lastName = 'Smith')");
-    die "smithless" unless @$participants;
+    my $users = Elive::Entity::User->list(filter => "(lastName = 'Smith')");
+    die "smithless" unless @$users;
 
     my $start = time() + 15 * 60; # starts in 15 minutes
     my $end   = $start + 30 * 60; # runs for half an hour
 
-    # upload whiteboard content
-    #
-    my $preload = Elive::Entity::Preload->upload('welcome.wbd');
+    my $whiteboard_preload = Elive::Entity::Preload->upload('welcome.wbd');
 
-    my $meeting = Elive::Entity::Session->insert({
+    my $session = Elive::Entity::Session->insert({
 	 name           => $meeting_name,
 	 facilitatorId  => Elive->login,
 	 start          => $start . '000',
 	 end            => $end   . '000',
-         participants   => $participants,
-         add_preload    => $preload,
+         participants   => $users,
+         restricted     => 1,
+         add_preload    => $whiteboard_preload,
 	 });
+
+    print "Session address: ".$session->web_url;
 
     Elive->disconnect;
 
