@@ -7,11 +7,11 @@ Elive - Elluminate Live! (c) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 1.01
+Version 1.02
 
 =cut
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 
 use 5.008003;
 
@@ -345,7 +345,7 @@ see the README file.
 
 =item L<Elive::Connection::SDK> - Elluminate SOAP connection
 
-=item L<Elive::View::Session>
+=item L<Elive::Entity::Session>
 
 =item L<Elive::Entity::Group>
 
@@ -379,8 +379,7 @@ L<Elive::StandardV2> - This is a separate CPAN module that implements the altern
 
 =head2 Elluminate Documentation
 
-The following is either installed with Elluminate I<Live!> Documentation, or
-can be obtained from Elluminate.
+This following documents were used in the construction of this module:
 
 =over 4
 
@@ -390,13 +389,15 @@ General Description of SDK development for Elluminate I<Live!>. In particular
 see section 4 - the SOAP Command Toolkit. This module concentrates on
 implementing the Entity Commands described in section 4.1.8.
 
+=item Undocumented ELM 3.x SDK Calls.pdf
+
+This describes the C<createSession> and C<updateSession> commands, as
+implemented by the L<Elive::Entity::Session> C<insert()> and C<update()>
+methods.
+
 =item DatabaseSchema.pdf
 
 Elluminate Database Schema Documentation.
-
-=item InstanceManager.pdf
-
-Describes setting up multiple site instances.
 
 =back
 
