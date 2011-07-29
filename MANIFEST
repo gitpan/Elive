@@ -85,6 +85,7 @@ t/soap-report.t
 t/soap-session-participants.t
 t/soap-session-recurring.t
 t/soap-session.t
+t/soap-taint-mode.t
 t/soap-user.t
 t/soap-view-session-recurring.t
 t/soap-view-session.t

@@ -85,15 +85,25 @@ sub test_connection {
 	$result{class} = 't::Elive::MockConnection';
     }
 
-    if ($result{auth} && (my $debug = Elive->debug)) {
-	push (@{$result{auth}}, debug => $debug);
+    if ($result{auth}) {
+
+	foreach (@{ $result{auth} }) {
+	    #
+	    # untaint
+	    #
+	    m{(.*)};
+	    $_ = $1;
+	}
+
+	push (@{$result{auth}}, debug => Elive->debug)
+	    if Elive->debug;
     }
 
     return %result;
 }
 
 sub generate_id {
-    my @chars = ('a' .. 'z', 'A' .. 'Z', '0' .. '9', '.', '_', '-');
+    my @chars = ('a' .. 'z', 'A' .. 'Z', '0' .. '9',  '_');
     my @p = map {$chars[ sprintf("%d", rand(scalar @chars)) ]} (1.. 6);
 
     return join('', @p);

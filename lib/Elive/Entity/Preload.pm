@@ -89,7 +89,7 @@ sub BUILDARGS {
     }
 
     if ($args{data}) {
-	$args{size} ||= length( $args{data} );
+	$args{size} ||= length( $args{data} )
     }
 
     if (defined $args{fileName} && length $args{fileName}) {
@@ -102,7 +102,7 @@ sub BUILDARGS {
 	unless defined $args{name} && length $args{name};
 
     $args{mimeType} ||= $class->_guess_mimetype($args{name});
-    $args{type} ||= ($args{name} =~ m{\.wbd$}ix     ? 'whiteboard'
+    $args{type} ||= ($args{name} =~ m{\.wb[pd]$}ix  ? 'whiteboard'
 		     : $args{name} =~ m{\.elpx?$}ix ? 'plan'
 		     : 'media');
 
@@ -154,7 +154,7 @@ There are three possible types of preloads: media, plan and whiteboard.
 
 Upload data from a client and create a preload.  If a C<mimeType> is not
 supplied, it will be guessed from the C<name> extension, using
-MIME::Types.
+L<MIME::Types>.
 
 =cut
 
@@ -177,8 +177,10 @@ sub upload {
 	# 2. Now upload data to it
 	#
 	my $som = $connection->call('streamPreload',
-				    preloadId => $self->preloadId,
-				    length => $self->size,
+				    %{ $self->_freeze(
+					   {preloadId => $self->preloadId,
+					    length => $self->size,
+					   })},
 				    stream => (SOAP::Data
 					       ->type('hexBinary')
 					       ->value($content)),

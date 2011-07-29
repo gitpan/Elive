@@ -1,4 +1,4 @@
-#!perl
+#!perl -T
 use warnings; use strict;
 use Test::More tests => 65;
 use Test::Exception;
@@ -15,6 +15,8 @@ use Elive::Util;
 
 use File::Spec qw();
 use File::Temp qw();
+
+use Carp; $SIG{__DIE__} = \&Carp::confess;
 
 our $t = Test::Builder->new;
 my $class = 'Elive::Entity::Preload' ;
@@ -260,7 +262,9 @@ SKIP: {
 	$preloads[$i]->delete;
     }
 
-    if (my $path_on_server = $ENV{ELIVE_TEST_PRELOAD_SERVER_PATH}) {
+    if ($ENV{ELIVE_TEST_PRELOAD_SERVER_PATH}) {
+	# untaint
+	my ($path_on_server) = ($ENV{ELIVE_TEST_PRELOAD_SERVER_PATH} =~ m{(.*)});
 	diag 'running preload import tests ($ELIVE_TEST_PRELOAD_SERVER_PATH set)';
 	diag "importing server-side file: $path_on_server";
 	my $basename = File::Basename::basename($path_on_server);

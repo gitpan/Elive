@@ -30,6 +30,7 @@ requires:
   Carp: 0
   Class::Accessor: 0
   Class::Data::Inheritable: 0
+  Clone: 0
   Date::Parse: 0
   File::Basename: 0
   File::Spec: 0
@@ -39,10 +40,9 @@ requires:
   MIME::Base64: 0
   MIME::Types: 0
   Mouse: 0.81
-  Pod::Usage: 1.36
+  Pod::Usage: 1.33
   SOAP::Lite: 0.712
   Scalar::Util: 0
-  Storable: 0
   Term::ReadKey: 0
   Term::ReadLine: 0
   Time::Local: 0
@@ -56,4 +56,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 1.03
+version: 1.04

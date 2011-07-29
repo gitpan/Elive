@@ -1,5 +1,35 @@
 Revision history for Elive
 
+1.04    28th July 2011
+
+        [security]
+        Essential changes to improve general security and play better with
+        Perl's Taint mode.
+        - These changes will only haven an impact when taint is enabled,
+          e.g. '-T' has been passed as a perl option.
+        - Taint checking is limited to outgoing strings (Str) in SOAP requests.
+        - Neither booleans (Bool) or integers (Int) are checked. However both
+          Int and Bool are sanitised when building SOAP requests.
+        - No attempt is made to apply taint checking to incoming data from
+          SOAP::Lite requests.
+
+        Elive::Util::_freeze() - Any attempts to freeze tainted strings
+          (type Str) while in taint mode now results in an error
+        Elive::DAO::list() - the 'filter' parameter is now frozen to avoid
+          bypassing taintness checks.
+        Elive::Entity::Recording, Elive::Entity::Preload - all SOAP
+          parameters are now frozen and taint checks are applied.
+
+        Dropped dependency on Storable::dclone; replaced with Clone::clone.
+        - Storable::dclone doesn't seem to honor taintness, whereas
+          Clone::clone does.
+
+       [enhancements]
+       Elive::Entity::Recording - added BUILDARGS method. 'size' is now
+       computed and doesn't need to be specified in upload()s.
+       Elive::Entity::ParticipantList - movedf update checks to
+       _readback_checks() for the benefit of Elive::Entity::Session.
+
 1.03    24th July 2011
 
         [enhancements]
@@ -12,13 +42,13 @@ Revision history for Elive
 
         [pod]
         Noted insert() and update() methods as undergoing depreciation for
-        meetings, meeting parameters, server parameters and participant list.
+        meetings, meeting parameters, server parameters and participant lists.
 
         [enhancements]
         Elive::Entity::Participant
         - added is_participant() setter/getter
         Elive::Entity:Role
-        - added BUILDARGS() method and simplied coercements.
+        - added BUILDARGS() method and simplified coercements.
 
         [bug fixes]
         Elive::Entity::User

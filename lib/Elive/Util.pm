@@ -5,7 +5,7 @@ use Term::ReadKey;
 use Term::ReadLine;
 use IO::Interactive;
 use Scalar::Util;
-use Storable;
+use Clone;
 use YAML;
 use Try::Tiny;
 
@@ -59,10 +59,18 @@ sub _freeze {
 		$_ =  $_ ? 'true' : 'false';
 	    }
 	    elsif ($type =~ m{^(Str|enum)}ix) {
+
+		#
+		# low level check for taintness. Only applicible when
+		# perl program is running in taint mode
+		#
+		die "attempt to freeze tainted data (type $type): $_"
+		    if Scalar::Util::tainted($_);
 		#
 		# l-r trim
 		#
-		s{^ \s* (.*?) \s* $}{$1}x;
+		$_ = $1
+		    if m{^ \s* (.*?) \s* $}x;
 		$_ = lc if $type =~ m{^enum};
 	    }
 	    elsif ($type =~ m{^(Int|HiResDate)}ix) {
@@ -111,7 +119,8 @@ sub _thaw {
 	    #
 	    # l-r trim
 	    #
-	    s{^ \s* (.*?) \s* $}{$1}x;
+	    $_ = $1
+		if m{^ \s* (.*?) \s* $}x;
 	    $_ = lc if $type =~ m{^enum}i;
 	}
 	elsif ($type =~ m{^Int|HiResDate}i) {
@@ -209,7 +218,7 @@ sub _reftype {
 }
 
 sub _clone {
-    return Storable::dclone(shift);
+    return Clone::clone(shift);
 }
 
 #
@@ -313,7 +322,7 @@ Quarter hour advancement for the Time Module impoverished.
     my $end = Elive::Util::next_quarter_hour($start);
 
 Advance to the next quarter hour without the use of any supporting
-time modules. We just simply increment in seconds until localtime
+time modules. We just simply increment in seconds until C<localtime>
 indicates that we're exactly on a quarter hour and ahead of the start time.
 
 A small initial increment is added to ensure that the date remains

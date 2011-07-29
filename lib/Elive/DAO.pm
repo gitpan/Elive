@@ -8,7 +8,6 @@ use parent 'Elive';
 
 use YAML;
 use Scalar::Util qw{weaken};
-use Storable qw{dclone};
 use Carp;
 use Try::Tiny;
 use URI;
@@ -32,7 +31,7 @@ foreach my $accessor (qw{_connection _db_data _deleted _is_copy}) {
 
 =head1 NAME
 
-    Elive::DAO - Abstract class for Elive Data Access Objects
+Elive::DAO - Abstract class for Elive Data Access Objects
 
 =head1 DESCRIPTION
 
@@ -101,7 +100,7 @@ sub stringify {
     my $data = shift;
 
     $data = $class
-	if !defined $data && ref$class;
+	if !defined $data && ref $class;
 
     return $data
 	unless $data && Elive::Util::_reftype($data);
@@ -318,7 +317,7 @@ sub _ordered_attributes {
 
     my $meta = $class->meta;
 
-    return map {$meta->get_attribute($_) || die "$class: unknown attribute $_"} ($class->_ordered_attribute_names);
+    return map {$meta->get_attribute($_) or die "$class: unknown attribute $_"} ($class->_ordered_attribute_names);
 }
 
 sub _cmp_col {
@@ -681,7 +680,7 @@ sub _freeze {
 
     $db_data ||= $class if ref($class);
     $db_data ||= {};
-    $db_data = Storable::dclone( $db_data );
+    $db_data = Elive::Util::_clone( $db_data );
 
     my $property_types = $class->property_types || {};
     my %param_types = $class->params;
@@ -830,7 +829,7 @@ sub _thaw {
 
     foreach my $alias (keys %$aliases) {
 	my $to = $aliases->{$alias}{to}
-	|| die "malformed alias: $alias";
+	or die "malformed alias: $alias";
 
 	$prop_key_map{ ucfirst($alias) } = $to;
     }
@@ -1110,7 +1109,7 @@ sub _to_aliases {
 
     foreach my $alias (keys %$aliases) {
 	my $to = $aliases->{$alias}{to}
-	|| die "malformed alias: $alias";
+	or die "malformed alias: $alias";
 
 	$aliased_to{$alias} = $to;
     }
@@ -1319,7 +1318,7 @@ sub list {
     my @params;
 
     if (my $filter = delete $opt{filter} ) {
-	push( @params, filter => $filter );
+	push( @params, filter => Elive::Util::_freeze($filter => 'Str') );
     }
 
     my $connection = $opt{connection}
@@ -1477,7 +1476,7 @@ sub _retrieve_all {
     die "nothing to retrieve"
 	unless (keys %fetch);
 
-    return $class->_fetch(\%fetch, %opt, mode => 'fetch');
+    return $class->_fetch(\%fetch, %opt);
 }
 
 =head2 delete
@@ -1541,7 +1540,7 @@ sub revert {
     my ($self, @props) = @_;
 
     my $db_data = $self->_db_data
-	|| die "object doesn't have db-data!? - can't cope";
+	or die "object doesn't have db-data!? - can't cope";
 
     @props = $self->is_changed
 	unless @props;
@@ -1686,7 +1685,7 @@ The following are all equivalent, and are all ok:
 
 =head1 SEE ALSO
 
- Mouse
+L<Mouse>
 
 =cut
 
