@@ -62,14 +62,11 @@ SKIP: {
 	     sub {$login_refetch = Elive::Entity::User->retrieve([$login->userId], reuse => 0)},
 	     're-retrieve of updated object without reuse - dies');
 
-    #
-    # check the retrieve -raw option
-    #
     my $login_raw_data;
 
     lives_ok(
 	     sub {$login_raw_data = Elive::Entity::User->retrieve([$login->userId], raw => 1)},
-	     're-retrieve of updated object with reuse - lives');
+	     'retrieval of raw data - lives');
 
     ok(!Scalar::Util::blessed($login_raw_data), 'raw retrieval returns unblessed data');
     

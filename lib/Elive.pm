@@ -7,11 +7,11 @@ Elive - Elluminate Live! (c) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 1.05
+Version 1.06
 
 =cut
 
-our $VERSION = '1.05';
+our $VERSION = '1.06';
 
 use 5.008003;
 
@@ -346,8 +346,6 @@ see the README file.
 =item L<Elive::Entity::Session>
 
 =item L<Elive::Entity::Group>
-
-=item L<Elive::Entity::ParticipantList>
 
 =item L<Elive::Entity::Preload>
 

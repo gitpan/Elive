@@ -11,7 +11,6 @@ A partial emulation of the SOAP connection and database backend.
 
 =cut
 
-use Elive::Connection::SDK;
 use parent 'Elive::Connection::SDK';
 
 use Elive;
@@ -37,7 +36,15 @@ sub _connect {
     $url =~ s{/$}{};                    # lose trailing '/'
     $url =~ s{/webservice\.event$}{};   # lose endpoint
     $url =~ s{/v2$}{};                  # lose adapter path
-    $url =~ s{^(\w+)://(.*)\@}{$1://};  # lose credentials
+
+    if ($url =~ s{^(\w+)://(.*)\@}{$1://}) {  # lose/capture credentials
+
+	my ($_user, $_pass) = split(':', $2, 2);
+
+	$user ||= $_user;
+	$pass ||= $_pass if $_pass;
+    }
+
     $self->url($url);
 
     $self->user($user);
@@ -46,7 +53,8 @@ sub _connect {
     $self->pass($pass);
     $self->pass('test_pass') unless $self->pass;
 
-    $self->debug($opt{debug});
+    $self->debug($opt{debug})
+	if defined $opt{debug};
 
     $self->mockdb({});
 
@@ -147,7 +155,7 @@ sub call {
 			my $id;
 			my $ctr;
 			do {
-			    $id = sprintf("%d", rand(32767));
+			    $id = sprintf("%d", rand(32767) + 1);
 			    die "mockup primary keys exhausted for $entity_name?"
 				if (++$ctr > 10000);
 			} while exists $self->mockdb->{__IDS__}{$entity_name}{$id};
