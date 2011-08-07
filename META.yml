@@ -56,4 +56,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 1.06
+version: 1.07
