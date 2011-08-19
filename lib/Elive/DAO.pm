@@ -70,9 +70,9 @@ sub BUILDARGS {
 	    if (my $type = $types->{$prop}) {
 		if (ref($value)) {
 		    #
-		    # inspect the item to see if we need to uncoerce back to
-		    # a simpler type. For example we may have been passed an
-		    # object, rather than just its primary key.
+		    # inspect the item to see if we need to stringify an
+		    # object to obtain a simple string. The property is
+		    # likely to be a foreign key.
 		    #
 		    $value = Elive::Util::string($value, $type)
 			unless Elive::Util::inspect_type($type)->is_ref;
@@ -105,11 +105,14 @@ sub stringify {
     return $data
 	unless $data && Elive::Util::_reftype($data);
 
+    my @primary_key = $class->primary_key
+	or return; # weak entity - e.g. Elive::StandardV2::ServerVersions
+
     my $types = $class->property_types;
 
     my $string = join('/', map {Elive::Util::_freeze($data->{$_},
 						     $types->{$_})}
-		      $class->primary_key);
+		      @primary_key);
 
     return $string;
 }
@@ -144,7 +147,7 @@ sub entity_name {
 
 =head2 collection_name
 
-    my $collection_name = MyApp::Entity::User->collecion_name
+    my $collection_name = MyApp::Entity::User->collection_name
     ok($collection_name eq 'users');
 
 =cut
@@ -513,7 +516,9 @@ is used internally to uniquely identify and cache objects across repositories.
 sub url {
     my $self = shift;
     my $connection = shift || $self->connection;
-    return $self->_restful_url($connection, $self->stringify);
+    my $path = $self->stringify
+	or return;
+    return $self->_restful_url($connection, $path);
 }
 
 =head2 construct
@@ -621,9 +626,10 @@ sub __set_db_data {
 	if (Scalar::Util::blessed $struct) {
 	    if ($connection && $struct->can('connection')) {
 
-		if (!$opt{copy} && $struct->can('url')) {
-
-		    my $obj_url = $struct->url($connection);
+		if (!$opt{copy}
+		    && $struct->can('url')
+		    && (my $obj_url = $struct->url($connection))
+		    ) {
 
 		    my $cache_access;
 
