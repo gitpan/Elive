@@ -124,6 +124,10 @@ __PACKAGE__->_alias(serverTeleconferencePIN => 'serverTelephonyPIN', freeze => 1
 
 __PACKAGE__->_alias(add_preload => 'preloadIds');
 
+=head1 METHODS
+
+=cut
+
 sub _alias {
     my ($entity_class, $from, $to, %opt) = @_;
 
@@ -753,9 +757,9 @@ extension, or you can supply, these details yourself:
 
 The C<import_from_server> method also has an extended form:
 
-    $preload2 =  Elive::Entity::Preload->import_from_server({
+    $preload3 =  Elive::Entity::Preload->import_from_server({
                      fileName =>'/home/uploads/slide3.wbd.tmp123'
-                     data => $content,
+                     ownerId => 357147617360,
                      type => 'preload',
                      mimeType => 'application/octet-stream',
                    });
@@ -846,8 +850,8 @@ For more information, please see L<Elive::Entity::Recording>.
 
 =head2 Recurring Sessions - Parameters
 
-The C<create> command has a number of additional parameters that can assist
-with setting up blocks of recurring meetings:
+The C<create> command has a number of additional parameters for
+setting up blocks of recurring meetings:
 
 =head3 until C<(HiResDate)>
 

@@ -7,18 +7,18 @@ Elive - Elluminate Live! (c) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 1.18
+Version 1.19
 
 =cut
 
-our $VERSION = '1.18';
+our $VERSION = '1.19';
 
 use 5.008003;
 
 use parent qw{Class::Data::Inheritable};
 use Scalar::Util;
 
-use YAML;
+use YAML::Syck;
 use Carp;
 use Elive::Entity;
 
@@ -267,19 +267,19 @@ see the README file.
 
 =over 4
 
-=item L<Elive::Connection::SDK> - Elluminate SOAP connection
-
 =item L<Elive::Entity::Session> - Sessions (or meetings)
 
 =item L<Elive::Entity::Group> - Groups of Users
 
-=item L<Elive::Entity::Preload> - Preload Content (whiteboard, multimedia and meeting plans)
+=item L<Elive::Entity::Preload> - Preload Content (whiteboard, multimedia and plans)
 
 =item L<Elive::Entity::Recording> - Session Recordings
 
 =item L<Elive::Entity::Report> - Management Reports
 
-=item L<Elive::Entity::User> - Users and Logins
+=item L<Elive::Entity::User> - Users/Logins
+
+=item L<Elive::Connection::SDK> - Elluminate SOAP connections
 
 =back
 

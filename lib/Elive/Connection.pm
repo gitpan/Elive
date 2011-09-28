@@ -11,6 +11,7 @@ require SOAP::Lite;
 use URI;
 use URI::Escape qw{};
 use Try::Tiny;
+use YAML::Syck;
 
 use parent qw{Class::Accessor Class::Data::Inheritable};
 
@@ -162,7 +163,7 @@ sub _check_for_errors {
     my $result = $som->result;
     my @paramsout = $som->paramsout;
 
-    warn YAML::Dump({result => $result, paramsout => \@paramsout})
+    warn YAML::Syck::Dump({result => $result, paramsout => \@paramsout})
 	if ($class->debug);
 
     my @results = ($result, @paramsout);
@@ -195,7 +196,7 @@ sub _check_for_errors {
 	    my %seen;
 
 	    my @error = grep {defined($_) && !$seen{$_}++} ($code, $reason, @stack_trace);
-	    Carp::croak join(' ', @error) || YAML::Dump($result);
+	    Carp::croak join(' ', @error) || YAML::Syck::Dump($result);
 	}
     }
 }

@@ -6,9 +6,9 @@ use Mouse::Util::TypeConstraints;
 
 our $VERSION = '0.04';
 
-use parent 'Elive::DAO::_Base';
+use base 'Elive::DAO::_Base';
 
-use YAML;
+use YAML::Syck;
 use Scalar::Util qw{weaken};
 use Carp;
 use Try::Tiny;
@@ -16,16 +16,14 @@ use URI;
 
 use Elive::Util qw{0.01};
 
-BEGIN {
-    __PACKAGE__->mk_classdata('_entities' => {});
-    __PACKAGE__->mk_classdata('_aliases');
-    __PACKAGE__->mk_classdata('_derivable' => {});
-    __PACKAGE__->mk_classdata('_entity_name');
-    __PACKAGE__->mk_classdata('_primary_key' => []);
-    __PACKAGE__->mk_classdata('_params' => {});
-    __PACKAGE__->mk_classdata('collection_name');
-    __PACKAGE__->mk_classdata('_isa');
-};
+__PACKAGE__->mk_classdata('_entities' => {});
+__PACKAGE__->mk_classdata('_aliases');
+__PACKAGE__->mk_classdata('_derivable' => {});
+__PACKAGE__->mk_classdata('_entity_name');
+__PACKAGE__->mk_classdata('_primary_key' => []);
+__PACKAGE__->mk_classdata('_params' => {});
+__PACKAGE__->mk_classdata('collection_name');
+__PACKAGE__->mk_classdata('_isa');
 
 foreach my $accessor (qw{_db_data _deleted _is_copy}) {
     __PACKAGE__->has_metadata($accessor);
@@ -348,7 +346,7 @@ sub _cmp_col {
 	$cmp = $t->stringify($v1) cmp $t->stringify($v2);
     }
     elsif ($type =~ m{^Ref|Any}ix) {
-	$cmp = YAML::Dump($v1) cmp YAML::Dump($v2);
+	$cmp = YAML::Syck::Dump($v1) cmp YAML::Syck::Dump($v2);
     }
     else {
 	#
@@ -380,7 +378,7 @@ sub _cmp_col {
 	}
     }
 
-    warn YAML::Dump {cmp => {result =>$cmp,
+    warn YAML::Syck::Dump {cmp => {result =>$cmp,
 			     class => $class,
 			     data_type => "$data_type",
 			     v1 => $v1,
@@ -562,7 +560,7 @@ sub construct {
 	carp "$class - unknown properties: @unknown" if @unknown;
     };
 
-    warn YAML::Dump({class => $class, construct => $data})
+    warn YAML::Syck::Dump({class => $class, construct => $data})
 	if (Elive->debug > 1);
 
     my $self;
@@ -662,7 +660,7 @@ sub __set_db_data {
 		    weaken ($Stored_Objects{$obj_url} = $struct);
 
 		    if ($struct->debug >= 5) {
-			warn YAML::Dump({opt => \%opt, struct => $struct, class => ref($struct), url => $obj_url, cache => $cache_access, ref1 => "$struct", ref2 => "$Stored_Objects{$obj_url}"});
+			warn YAML::Syck::Dump({opt => \%opt, struct => $struct, class => ref($struct), url => $obj_url, cache => $cache_access, ref1 => "$struct", ref2 => "$Stored_Objects{$obj_url}"});
 		    }
 		}
 
@@ -922,7 +920,7 @@ sub _thaw {
     }
 
     if ($class->debug) {
-	warn "thawed: $class: ".YAML::Dump(
+	warn "thawed: $class: ".YAML::Syck::Dump(
 	    {db => $entity_data,
 	     thawed => \%data}
 	    );
@@ -956,14 +954,14 @@ sub _readback_check {
 
     my $updates = $class->_freeze( $updates_raw, canonical => 1);
 
-    warn YAML::Dump({class => $class, updates_raw => $updates_raw, updates => $updates})
+    warn YAML::Syck::Dump({class => $class, updates_raw => $updates_raw, updates => $updates})
 	if ($class->debug >= 5);
 
     foreach my $row_raw (@$rows) {
 
 	my $row = $class->_freeze( $row_raw, canonical => 1);
 
-	warn YAML::Dump({row_raw => $row_raw, row => $row})
+	warn YAML::Syck::Dump({row_raw => $row_raw, row => $row})
 	    if ($class->debug >= 5);
 
 	foreach ($class->properties) {
@@ -975,7 +973,7 @@ sub _readback_check {
 
 		    my $property_type = $class->property_types->{$_};
 
-		    warn YAML::Dump({read => $read_val, sent => $write_val, type => "$property_type"})
+		    warn YAML::Syck::Dump({read => $read_val, sent => $write_val, type => "$property_type"})
 			if ($class->debug >= 2);
 
 		    croak "${class}: Update consistancy check failed on $_ (${property_type}), sent:".Elive::Util::string($write_val, $property_type).", read-back:".Elive::Util::string($read_val, $property_type);
@@ -1654,7 +1652,7 @@ sub DEMOLISH {
 	    Carp::carp("$class $self_string destroyed without saving or reverting changes to: "
 		 . join(', ', @changed));
 
-	    use YAML; warn YAML::Dump {self => $self, db_data => $db_data}
+	    warn YAML::Syck::Dump {self => $self, db_data => $db_data}
 	    if ($self->debug||0) >= 6;
 	}
 	#

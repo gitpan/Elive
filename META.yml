@@ -50,10 +50,10 @@ requires:
   URI: 0
   URI::Escape: 0
   XML::Simple: 0
-  YAML: 0
+  YAML::Syck: 0
   parent: 0
   perl: 5.8.3
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 1.18
+version: 1.19
