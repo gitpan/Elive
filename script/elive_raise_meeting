@@ -15,6 +15,7 @@ use Elive::Util;
 use Elive::Entity::Preload;
 use Elive::Entity::User;
 use Elive::Entity::Participant;
+use Elive::Entity::Session;
 use Elive::View::Session;
 
 use URI;
@@ -24,7 +25,7 @@ use YAML::Syck;
 
 =head1 NAME
 
-elive_raise_meeting
+elive_raise_meeting - Elluminate Live! Manager (ELM) meeting creation
 
 =head1 SYNOPSIS
 
@@ -177,13 +178,13 @@ sub main {
 	'all_moderators!' => \$session_data{allModerators},
 	'boundary=i' => \$session_data{boundaryMinutes},
 	'cost_center|cost_centre=s' => \$session_data{costCenter},
-	'exit_url=s' => \$session_data{redirectURL},
+	'exit_url|redirect_url=s' => \$session_data{redirectURL},
 	'facilitator=s' => \$session_data{facilitatorId},
 	'follow|follow_moderator!' => \$session_data{followModerator},
 	'invites|invitations!' => \$session_data{inSessionInvitation},
 	'meeting_password|meeting_pass|session_password|session_pass=s' => \$session_data{password},
-	'max_cameras=i' => \$session_data{videoWindow},
-	'max_talkers=i' => \$session_data{maxTalkers},
+	'max_cameras|cameras|video_window=i' => \$session_data{videoWindow},
+	'max_talkers|talkers=i' => \$session_data{maxTalkers},
 	'moderator_notes=s' => \$session_data{moderatorNotes},
 	'name|meeting_name=s' => \$session_data{name},
 	'private!' => \$session_data{privateMeeting},
@@ -248,7 +249,7 @@ sub main {
     $class ||= do {
 	#
 	# use hasn't specified elluminate compatibility, or which session
-	# class to use. Work it out from their Elluminate server version.
+	# class to use. Guess it from their Elluminate server version.
 	#
 	my $server_version = eval {$connection->version}
 	or die ($@ || "unable to get server details version\n");
@@ -278,7 +279,7 @@ sub main {
 	$_ = lc $_;
 	#
 	# accept some of the other symonymns for the various modes as
-	# seen in documentation and elluminate's web interface.
+	# seen in documentation and Elluminate's web interface.
 	#
 	s{^none|disabled$}{off}x;
 	s{^manual$}{remote}x;
@@ -390,41 +391,16 @@ sub main {
 
 ########################################################################
 
-sub parse_participants {
-    my $spec = shift;
-    my %opt = @_;
-
-    my @participants;
-
-    foreach my $spec (map {split(';',$_)} @$spec) {
-
-	my $participant = eval {
-	    Elive::Entity::Participant->new($spec)
-	};
-
-	if ($@) {
-	    warn "$@\n";
-	    next;
-	}
-
-	$participant->role( $opt{role} ) if $opt{role};
-
-	push (@participants, $participant);
-    }
-
-    return @participants;
-}
-
-########################################################################
-
 sub build_participants {
     my ($moderators, $others, $args) = @_;
 
-    my @participants = (
-	parse_participants($moderators, role => 2),
-	parse_participants($others, role => 3),
-	parse_participants($args),
+    my @participants_spec = (
+	@$args,
+	-moderators => @$moderators,
+	-others => @$others
 	);
+
+    my $participants = Elive::Entity::Participants->new( \@participants_spec );
     #
     # collate by type
     #
@@ -432,7 +408,7 @@ sub build_participants {
     my @groups;
     my @guests;
 
-    foreach my $participant (@participants) {
+    foreach my $participant (@$participants) {
 
 	my $type = $participant->type;
 

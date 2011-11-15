@@ -34,7 +34,7 @@ my $connection_class = $result{class};
 my $connection = $connection_class->connect(@$auth);
 Elive->connection($connection);
 
-diag "group test url: ".$connection->url;
+note "group test url: ".$connection->url;
 
 my @usernames = qw(test_user1 test_user2 test_user3 alice bob trev);
 my @users;
@@ -137,16 +137,13 @@ do {
 	is($group2->members->stringify, $expected_members_str, "members stringification (after update)");
     }
 
-    #
-    # someone will do this sooner or later
-    #
     $group2->members->add( $group2 );
     my @expanded_members = $group2->expand_members;
     is_deeply(\@expanded_members, [sort values %user_ids], 'expanded membership');
 
     #
-    # just to define behavour of attempted to add a circular reference to
-    # a group - the command toolkit should detect this and barf.
+    # just to define behavour of attempting to add a circular reference
+    # to a group - the command toolkit should detect this and barf.
     #
     if ($connection_class->isa('t::Elive::MockConnection')) {
 	$t->skip('skipping circular update test on mock connection')

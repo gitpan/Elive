@@ -68,7 +68,7 @@ SKIP: {
 	sub {my $_p = Elive::Entity::ParticipantList->insert(
 		 {meetingId => $meeting->meetingId,
 		  participants => $participants_deep_ref});
-	     diag ("participants=".$_p->participants->stringify);
+	     note ("participants=".$_p->participants->stringify);
 	},
 	'insert of participant deep list - lives');
 
@@ -88,7 +88,7 @@ SKIP: {
 
     $participant_list->update({participants => Elive->login->userId.'=2'});
 
-    diag ("participants=".$participant_list->participants->stringify);
+    note ("participants=".$participant_list->participants->stringify);
 
     is($participant_list->participants->stringify, Elive->login->userId.'=2',
        'participant string list - set correctly');
@@ -120,12 +120,6 @@ SKIP: {
 	$participant_list->participants->add($participant1->userId.'=3');
 
 	lives_ok(sub {$participant_list->update}, 'setting of participant - lives');
-	if ($elm_3_3_4_or_better) {
-	    ok($meeting->is_participant( $participant1), 'is_participant($participant1)');
-	}
-	else {
-	    $t->skip('is_participant() - broken prior to ELM 3.3.4 / 10.0.2');
-	}
 
 	ok(!$meeting->is_moderator( $participant1), '!is_moderator($participant1)');
 
@@ -135,12 +129,16 @@ SKIP: {
 	$participant_list->participants->add($participant2->userId.'=3');
 	$participant_list->update();
 
-	if ($elm_3_3_4_or_better) {
-	    ok($meeting->is_participant( $participant2), 'is_participant($participant2)');
-	}   
-        else {  
-            $t->skip('is_participant() - broken prior to ELM 3.3.4 / 10.0.2');
-        }
+    TODO: {
+          #
+          # is_participant() give variable results on various ELM versions
+          # ELM 3.0 - 3.3.4 - best to treat is as broken
+          #
+           local($TODO) = 'reliable - is_participant()';
+
+	   ok($meeting->is_participant( $participant1), 'is_participant($participant1)');
+	   ok($meeting->is_participant( $participant2), 'is_participant($participant2)');
+       }
 
  	ok(!$meeting->is_moderator( $participant2), '!is_moderator($participant2)');
 
@@ -258,7 +256,7 @@ SKIP: {
 	@users_seen{ @user_ids_in } = undef;
 	my @expected_users = sort keys %users_seen;
 
-	$participant_list = Elive::Entity::ParticipantList->retrieve([$meeting->meetingId]);
+	$participant_list = Elive::Entity::ParticipantList->retrieve($meeting->meetingId);
 	my $participants = $participant_list->participants;
 
 	my @actual_users = sort map {$_->user->userId} @$participants;
@@ -284,7 +282,7 @@ SKIP: {
 
     if ($group) {
 	my $invited_guest = 'Robert(bob@acme.org)';
-	diag "using group ".$group->name;
+	note "using group ".$group->name;
 	lives_ok(sub {$participant_list->update({ participants => [$group, $participant1, $invited_guest]})}, 'setting of participant groups - lives');
     }
     else {
