@@ -2,12 +2,13 @@
 use warnings; use strict;
 use Test::More tests => 50;
 use Test::Warn;
-use Test::Exception;
+use Test::Fatal;
 
 use Elive;
 use Elive::Connection;
 use Elive::Entity;
 use Elive::Entity::User;
+use Elive::Entity::Role;
 use Elive::Entity::Meeting;
 use Elive::Entity::Recording;
 use Elive::Entity::Session;
@@ -36,6 +37,8 @@ my $user1 = Elive::Entity::User->construct({
      },
     );
 
+my $role2 = Elive::Entity::Role->construct({roleId => 2});
+
 isa_ok($user1, 'Elive::Entity::User');
 ok(!$user1->is_changed, 'freshly constructed user - !changed');
 is($user1->userId, $USER_ID, 'user - userId accessor');
@@ -49,15 +52,15 @@ do {
     ok($user1->role->_db_data, 'user role has db data');
 
     ok( !$user1->role->is_changed, 'sub record (role) before change');
-    ok($user1->role->{roleId}++, 'found an incremented role');
+    ok($user1->role($role2), "role change");
 
-    ok($user1->role->is_changed,  'sub record (role) after change');
+    ok(!$user1->role->is_changed,  'sub record (role) replaced, not changed');
 
     ok($user1->is_changed, 'sub record primary key change - detected in main record');
 
-    lives_ok( sub {$user1->role->revert}, 'sub record revert - lives');
+    is( exception {$user1->revert} => undef, 'sub record revert - lives');
     is( $user1->role->{roleId}, 1, 'sub record (role) value after revert');
-    ok( !$user1->role->is_changed, 'sub record (role) is_changed() after revert');
+    ok( !$user1->is_changed, 'is_changed() after revert');
 
     $user1->set(loginName => $user1->loginName . '_1');
 
@@ -158,18 +161,18 @@ my $meeting_obj =  Elive::Entity::Meeting->construct({
  
 ok(!$recording->is_changed, 'recording - not changed before update');
 
-lives_ok(sub{$recording->set(meetingId => $meeting_obj)}, 'setting foreign key via object - lives');
+is( exception {$recording->set(meetingId => $meeting_obj)} => undef, 'setting foreign key via object - lives');
 
 ok($recording->is_changed, 'recording - changed after update');
 is($recording->meetingId, $meetingId2,'recording meetingId before revert');
 
-lives_ok(sub{$recording->revert}, 'recording revert - lives');
+is( exception {$recording->revert} => undef, 'recording revert - lives');
 
 is($recording->meetingId, $meetingId1,'recording meetingId after revert');
 ok(!$recording->is_changed, 'recording - is_changed is false after revert');
 
 my $session;
-lives_ok( sub {
+is( exception {
     $session = Elive::Entity::Session->construct({
 	id => 12345,
 	meeting => {
@@ -190,7 +193,7 @@ lives_ok( sub {
 	    meetingId => 12345,
           },
      })
-  },'session construct - lives');
+  } => undef, 'session construct - lives');
 
 $session->name( $session->name.'X' );
 $session->userNotes( $session->userNotes.'X' );

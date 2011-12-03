@@ -11,21 +11,19 @@ build_requires:
   Test::Warn: 0
   version: 0
 configure_requires:
-  ExtUtils::MakeMaker: 6.42
+  ExtUtils::MakeMaker: 0
 distribution_type: module
-generated_by: 'Module::Install version 1.01'
+dynamic_config: 0
+generated_by: 'ExtUtils::MakeMaker version 6.57_05'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
-module_name: Elive
 name: Elive
 no_index:
   directory:
-    - inc
     - t
-recommends:
-  Term::ReadLine::Perl: 0
+    - inc
 requires:
   Carp: 0
   Class::Accessor: 0
@@ -51,8 +49,5 @@ requires:
   XML::Simple: 0
   YAML::Syck: 0
   parent: 0
-  perl: 5.8.3
-resources:
-  license: http://dev.perl.org/licenses/
-  repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
+  perl: 5.008003
 version: 1.21

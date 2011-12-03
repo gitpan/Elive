@@ -1,6 +1,6 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 12;
+use Test::More tests => 14;
 use Test::Warn;
 
 use Elive;
@@ -10,6 +10,7 @@ use Elive::Entity::User;
 use Elive::Entity::Meeting;
 use Elive::Entity::Preload;
 use Elive::Entity::Recording;
+use Elive::Entity::Participant;
 
 use lib '.';
 use t::Elive::MockConnection;
@@ -42,6 +43,15 @@ warnings_like(
     sub {$user_1->_db_data->is_changed},
     qr{is_changed called on non-database object},
     'calling is_changed on non-database object produces a warning'
+    );
+
+
+non_pkey_changed();
+
+warnings_like(
+    \&pkey_changed,
+    qr(rimary key field has been modified),
+    "is_changed warning following pkey update"
     );
 
 my $user_2;
@@ -92,6 +102,13 @@ warnings_like(
     sub {$thawed_data = thaw_with_bad_recording_status($meeting_parameter_data)},
     qr(ignoring unknown recording status),
     "thawing unknown media type gives warning"
+    );
+
+guest_participant_valid();
+
+warnings_like( \&guest_participant_with_forced_moderator_role,
+	       qr{ignoring moderator role},
+	       'guest participant with forced moderator role gives warning'
     );
 
 exit(0);
@@ -145,6 +162,29 @@ sub set_unknown_property {
     return $user;
 }
 
+sub non_pkey_changed {
+    my $user = Elive::Entity::User->construct
+	({  userId => 5678,
+	    loginName => 'user',
+	    loginPassword => 'pass',
+	});
+    $user->{loginPassword} = 'pass2';
+    $user->is_changed;
+    $user->revert;
+}
+
+sub pkey_changed {
+    my $user = Elive::Entity::User->construct
+	({  userId => 5678,
+	    loginName => 'user',
+	    loginPassword => 'pass',
+	});
+    $user->{userId} = 998877;
+    $user->is_changed;
+    $user->{userId} = 5678;
+
+}
+
 sub thaw_with_bad_preload_type {
     my $preload_data = shift;
 
@@ -160,3 +200,34 @@ sub thaw_with_bad_recording_status {
 
     return Elive::Entity::MeetingParameters->_thaw($preload_data);
 }
+
+sub guest_participant_valid {
+    my $participant = Elive::Entity::Participant->construct(
+      {
+	  type => 2,
+	  guest => {
+	      invitedGuestId => 1111,
+	      loginName => 'bob@acme.com',
+	      displayName => 'Robert'
+	  },
+	  role => 3,
+      });
+    $participant->stringify;
+};
+
+sub guest_participant_with_forced_moderator_role {
+    my $participant = Elive::Entity::Participant->construct(
+      {
+	  type => 2,
+	  guest => {
+	      invitedGuestId => 2222,
+	      loginName => 'bob@acme.com',
+	      displayName => 'Robert'
+	  },
+	  role => 2,
+      });
+};
+
+
+
+

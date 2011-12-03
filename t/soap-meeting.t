@@ -1,7 +1,7 @@
 #!perl -T
 use warnings; use strict;
 use Test::More tests => 32;
-use Test::Exception;
+use Test::Fatal;
 use Test::Builder;
 
 use lib '.';
@@ -71,7 +71,7 @@ SKIP: {
 	inSessionInvitation => 1,
 	);
 
-    my $meeting_params = Elive::Entity::MeetingParameters->retrieve([$meeting->meetingId]);
+    my $meeting_params = Elive::Entity::MeetingParameters->retrieve($meeting->meetingId);
 
     isa_ok($meeting_params, 'Elive::Entity::MeetingParameters', 'meeting_params');
 
@@ -86,7 +86,7 @@ SKIP: {
     # high level check of our aliasing. updating inSessionInvitations should
     # be equivalent to updating inSessionInvitation
     #
-    lives_ok( sub {$meeting_params->update({inSessionInvitations => 0})}, "update inSessionInvitations (alias) - lives");
+    is( exception {$meeting_params->update({inSessionInvitations => 0})} => undef, "update inSessionInvitations (alias) - lives");
     ok( ! $meeting_params->inSessionInvitation, "update inSessionInvitation via alias - as expected" );
     
     ########################################################################
@@ -103,7 +103,7 @@ SKIP: {
 	seats => 2,
     );
 
-    my $server_params = Elive::Entity::ServerParameters->retrieve([$meeting->meetingId]);
+    my $server_params = Elive::Entity::ServerParameters->retrieve($meeting->meetingId);
 
     isa_ok($server_params, 'Elive::Entity::ServerParameters', 'server_params');
 
@@ -119,14 +119,14 @@ SKIP: {
 	# more detailed.
 	#
 	my $meetingJNLP;
-	lives_ok(sub {$meetingJNLP = $meeting->buildJNLP(
+	is( exception {$meetingJNLP = $meeting->buildJNLP(
 			  version => '8.0',
 			  displayName => 'Elive Test',
-			  )},
+			  )} => undef,
 		'$meeting->buildJNLP - lives');
 
 	ok($meetingJNLP && !ref($meetingJNLP), 'got meeting JNLP');
-	lives_ok(sub {XMLin($meetingJNLP)}, 'meeting JNLP is valid XML (XHTML)');
+	is( exception {XMLin($meetingJNLP)} => undef, 'meeting JNLP is valid XML (XHTML)');
     };
 
     my $meeting_id = $meeting->meetingId;
@@ -140,7 +140,7 @@ SKIP: {
     }
     else {
 	my $user_meetings;
-	lives_ok( sub {
+	is( exception {
 	    my $user_meetings
 		= Elive::Entity::Meeting->list_user_meetings_by_date(
 		[$meeting_data{facilitatorId},
@@ -148,7 +148,7 @@ SKIP: {
 		 $meeting_data{end},
 		]
 		)
-		  }, 'list_user_meetings_by_date(...) - lives');
+		  } => undef, 'list_user_meetings_by_date(...) - lives');
 
 	isa_ok($user_meetings, 'ARRAY', 'user_meetings');
 
@@ -162,24 +162,18 @@ SKIP: {
     # start to tidy up
     #
 
-    lives_ok(sub {$meeting->delete},'meeting deletion');
-    #
-    # This is an assertion of server behaviour. Just want to verify that
-    # meeting deletion cascades. I.e. meeting & server parameters are deleted
-    # when the meeting is deleted.
-    #
-    $meeting_params = undef;
+    is( exception {$meeting->delete} => undef, 'meeting deletion - lives');
 
     $meeting = undef;
 
+    #
+    # The meeting should either have been immediately deleted, or marked as
+    # deleted for later garbage collection
+    #
     my $deleted_meeting;
-    eval {$deleted_meeting = Elive::Entity::Meeting->retrieve([$meeting_id])};
-    #
-    # Change in policy with elluminate 9.5.1. Deleted meetings remain
-    # retrievable, they just have the deleted flag set
-    #
-    ok($@ || ($deleted_meeting && $deleted_meeting->deleted),
-       'cascaded delete of meeting parameters');
+    eval {$deleted_meeting = Elive::Entity::Meeting->retrieve($meeting_id)};
+    ok($@ || !$deleted_meeting || $deleted_meeting->deleted,
+       'meeting deletion enacted');
 }
 
 Elive->disconnect;

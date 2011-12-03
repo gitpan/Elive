@@ -4,7 +4,7 @@ use warnings; use strict;
 use Mouse;
 use Mouse::Util::TypeConstraints;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use parent 'Elive::DAO::_Base';
 
@@ -452,14 +452,14 @@ entities, this is the primary key:
 Arrays of sub-items evaluated, in a string context, to a semi-colon separated
 string of the individual values sorted.
 
-    my $group = Elive::Entity::Group->retrieve([98765]);
+    my $group = Elive::Entity::Group->retrieve(98765);
     if ($group->members->stringify eq "11223344;2222222") {
          ....
     }
 
-In particular meeting participants stringify to userId=role, eg
+In particular meeting participants stringify to userId=role, e.g.
 
-    my $participant_list = Elive::Entity::ParticipantList->retrieve([98765]);
+    my $participant_list = Elive::Entity::ParticipantList->retrieve(98765);
     if ($participant_list->participants->stringify eq "11223344=3;2222222=2") {
          ....
     }
@@ -478,7 +478,7 @@ instance, or the default connection that will be used.
 
 =head2 disconnect
 
-Disconnects and diassociates an Elluminate connection from this class. It is
+Disconnects and disassociates an Elluminate connection from this class. It is
 recommended that you do this prior to exiting your program.
 
 =cut
@@ -1002,7 +1002,7 @@ sub is_changed {
 	#
 	# not mapped to a stored data value. scratch object?, sub entity?
 	#
-	warn ref($self)."->is_changed called on non-database object (".$self->stringify.")\n";
+	Carp::carp( ref($self)."->is_changed called on non-database object (".$self->stringify.")\n" );
 	return;
     }
 
@@ -1013,12 +1013,30 @@ sub is_changed {
 
 	my $new = $self->$prop;
 	my $old = $db_data->$prop;
+	my $type = $property_types->{$prop};
+
+	die (ref($self)." - attribute $_ contains tainted data")
+	    if Elive::Util::_tainted($new) || Elive::Util::_tainted($old);
 
 	if (defined ($new) != defined ($old)
-	    || $self->_cmp_col($property_types->{$prop}, $new, $old)) {
+	    || $self->_cmp_col($type, $new, $old)) {
 
 	    push (@updated_properties, $prop);
 	}
+    }
+
+    #
+    # warn if we catch a primary key modification, after the fact
+    #
+    my %primary_key = map {$_ => 1} ($self->primary_key);
+    my @primary_key_updates = grep { exists $primary_key{$_} } @updated_properties;
+    foreach my $prop (@primary_key_updates) {
+
+	my $type = $property_types->{$prop};
+        my $old_str = Elive::Util::string($db_data->$prop => $type);
+	my $new_str = Elive::Util::string($self->$prop => $type);
+
+	Carp::carp( ref($self).": primary key field has been modified $prop: $old_str => $new_str" );
     }
 
     return @updated_properties;
@@ -1061,8 +1079,7 @@ sub set {
 	    if (defined $old_val && !defined $data{$_}) {
 		die "attempt to delete primary key";
                }
-	    elsif ($self->_cmp_col($type,
-				   $old_val, $data{$_})) {
+	    elsif ($self->_cmp_col($type, $old_val, $data{$_})) {
 		die "attempt to update primary key";
 	    }
 	}
@@ -1142,7 +1159,6 @@ sub _to_aliases {
              },
              connection => $con,   # connection to use,
              command => $cmd,      # soap command to use
-             param => \%params,    # additional soap params,
              );
 
     print "inserted user with id: ".$new_user->userId."\n";
@@ -1676,15 +1692,15 @@ with unsaved changes.
 You can also reuse objects from this cache by passing C<reuse => 1> to the
 C<fetch> method. 
 
-    my $user = Elive::Entity::User->retrieve([11223344]);
+    my $user = Elive::Entity::User->retrieve(11223344);
     #
     # returns the same reference, but refetches from the database
     #
-    my $user_copy = Elive::Entity::User->retrieve([11223344]);
+    my $user_copy = Elive::Entity::User->retrieve(11223344);
     #
     # same as above, however don't refetch if we already have a copy
     #
-    my $user_copy2 = Elive::Entity::User->retrieve([11223344], reuse => 1);
+    my $user_copy2 = Elive::Entity::User->retrieve(11223344, reuse => 1);
 
 You can access the in-memory cache using the C<live_entity> and C<live_entities>
 methods.
@@ -1696,8 +1712,8 @@ You may choose to use the accessors, or work directly with the object data.
 
 The following are all equivalent, and are all ok:
 
-    my $p_list = Elive::Entity::ParticipantList->retrieve([98765]);
-    my $user = Elive::Entity::User->retrieve([11223344]);
+    my $p_list = Elive::Entity::ParticipantList->retrieve(98765);
+    my $user = Elive::Entity::User->retrieve(11223344);
 
     $p_list->participants->add($user);
     push (@{ $p_list->participants        }, $user);
@@ -1708,7 +1724,11 @@ The following are all equivalent, and are all ok:
 
 =head1 SEE ALSO
 
-L<Mouse>
+=over 4
+
+=item L<Mouse> (base class) - Lightweight L<Moose> like class system
+
+=back
 
 =cut
 

@@ -1,8 +1,9 @@
 #!perl -T
 use warnings; use strict;
 use Test::More tests => 30;
-use Test::Exception;
+use Test::Fatal;
 use Test::Builder;
+use List::Util;
 
 use lib '.';
 use t::Elive;
@@ -95,7 +96,7 @@ SKIP: {
     #
     my ($participant1, $participant2, @participants);
 
-    lives_ok( sub {
+    is( exception {
 	#
 	# for datasets with 1000s of entries
 	($participant1, $participant2, @participants) = grep {$_->userId ne $session->facilitatorId} @{ Elive::Entity::User->list(filter => 'lastName = Sm*') };
@@ -103,7 +104,7 @@ SKIP: {
 	# for modest test datasets
 	($participant1, $participant2, @participants) = grep {$_->userId ne $session->facilitatorId} @{ Elive::Entity::User->list() }
 	    unless @participants;
-	      },
+	      } => undef,
 	      'get_users - lives');
 
     #
@@ -116,13 +117,7 @@ SKIP: {
 
 	$session->participants->add($participant1->userId.'=3');
 
-	lives_ok(sub {$session->update}, 'setting of participant - lives');
-	if ($elm_3_3_4_or_better) {
-	    ok($session->is_participant( $participant1), 'is_participant($participant1)');
-	}
-	else {
-	    $t->skip('is_participant() - broken prior to ELM 3.3.4 / 10.0.2');
-	}
+	is( exception {$session->update} => undef, 'setting of participant - lives');
 
 	ok(!$session->is_moderator( $participant1), '!is_moderator($participant1)');
 
@@ -132,12 +127,16 @@ SKIP: {
 	$session->participants->add($participant2->userId.'=3');
 	$session->update();
 
-	if ($elm_3_3_4_or_better) {
-	    ok($session->is_participant( $participant2), 'is_participant($participant2)');
-	}   
-        else {  
-            $t->skip('is_participant() - broken prior to ELM 3.3.4 / 10.0.2');
-        }
+      TODO: {
+          #
+          # is_participant() give variable results on various ELM versions
+          # ELM 3.0 - 3.3.4 - best to treat is as broken
+          #
+	  local($TODO) = 'reliable - is_participant()';
+	  
+	  ok($session->is_participant( $participant1), 'is_participant($participant1)');
+	  ok($session->is_participant( $participant2), 'is_participant($participant2)');
+	}
 
  	ok(!$session->is_moderator( $participant2), '!is_moderator($participant2)');
 
@@ -153,8 +152,8 @@ SKIP: {
     $session->revert();
 
     if (@participants) {
-	lives_ok( sub {$session->update({participants => \@participants}),
-		  }, 'setting up a larger session - lives');
+	is( exception {$session->update({participants => \@participants}) => undef,
+		  } => undef, 'setting up a larger session - lives');
     }
     else {
 	$t->skip('insufficient users to run large session tests');
@@ -168,13 +167,13 @@ SKIP: {
     ok(!$session->is_participant( $gate_crasher ), '!is_participant($gate_crasher)');
     ok(!$session->is_moderator( $gate_crasher ), '!is_moderator($gate_crasher)');
 
-    dies_ok(sub {
+    isnt( exception {
 	$session->participants->add($gate_crasher.'=3');
 	$session->update($gate_crasher.'=3');
-	    },
+	    } => undef,
 	    'add of unknown participant - dies');
 
-    lives_ok(sub {$session->update({participants => []})},
+    is( exception {$session->update({participants => []})} => undef,
 	     'clearing participants - lives');
 
     my $p = $session->participants;
@@ -229,12 +228,12 @@ SKIP: {
 	    }
 	}
 
-	lives_ok( sub {
+	is( exception {
 	  $session->update( {participants => [
 				-moderators => Elive->login,
 				-others => @big_user_list
 				 ] } )
-		  }, 'session participants long-list - dies'
+		  } => undef, 'session participants long-list - lives'
 	      );
 
 	#
@@ -277,20 +276,20 @@ SKIP: {
     #
     # test groups of participants
     #
-    lives_ok( sub {
-	@groups = @{ Elive::Entity::Group->list() } },
+    is( exception {
+	@groups = @{ Elive::Entity::Group->list() } } => undef,
 	'list all groups - lives');
 
     splice(@groups, 10) if @groups > 10;
 
     #
     # you've got to refetch the group to populate the list of recipients
-    my ($group1, $group2) = grep {$_->retrieve($_); @{ $_->members } } @groups;
+    my ($group1, $group2) = List::Util::first {$_->retrieve($_); @{ $_->members } } @groups;
 
     if ($group1 && $group2) {
 	my $invited_guest = 'Robert(bob)';
 	note "using groups: <".$group1->name.">, <".$group2->name.">";
-	lives_ok(sub {$session->update({ participants => [$group1, $group2, $participant1, $invited_guest]})}, 'setting of participant groups - lives');
+	is( exception {$session->update({ participants => [$group1, $group2, $participant1, $invited_guest]})} => undef, 'setting of participant groups - lives');
     }
     else {
 	$t->skip('no candidates found for group tests');
@@ -300,7 +299,7 @@ SKIP: {
     # tidy up
     #
 
-    lives_ok(sub {$session->delete},'session deletion');
+    is( exception {$session->delete} => undef,'session deletion');
 }
 
 Elive->disconnect;
