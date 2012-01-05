@@ -9,7 +9,7 @@ use Clone;
 use YAML::Syck;
 use Try::Tiny;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use Elive::Util::Type;
 
@@ -155,10 +155,14 @@ sub _tidy_decimal {
     # to avoid overflow. Just normalise it for potential
     # string comparisons
     #
-    # l-r trim
+    # l-r trim, also untaint
     #
-    $i =~ s{^ [\s\+]* (-?\d+) \s* $}{$1}x
-	or return;
+    if ($i =~ m{^ [\s\+]* (-?\d+) \s* $}x) {
+	$i = $1;
+    }
+    else {
+	return;
+    }
 
     #
     # remove any leading zeros:
@@ -182,7 +186,7 @@ sub _tidy_decimal {
     # sanity check.
     #
     die "bad integer: $_[0]"
-	unless $i =~ m{^[+-]?\d+$};
+	unless $i =~ m{^([+-]?\d+)$};
 
     return $i;
 }

@@ -2,9 +2,9 @@
 use warnings; use strict;
 use Test::More tests => 34;
 use Test::Fatal;
-use Test::Builder;
-use List::Util;
 use Test::Warn;
+
+use List::Util;
 
 use lib '.';
 use t::Elive;
@@ -19,7 +19,7 @@ use Elive::Entity::User;
 use Elive::Entity::Group;
 use Elive::Util;
 
-our $t = Test::Builder->new;
+our $t = Test::More->builder;
 our $class = 'Elive::Entity::Meeting' ;
 
 our $connection;
@@ -114,8 +114,9 @@ SKIP: {
     #
     # only want a handful
     #
-    splice(@participants, 10)
-	if (@participants > 10);
+    my @participants_sample = @participants > 10
+	? @participants[0 .. 9]
+	: @participants;
 
     if ($participant2) {
 
@@ -134,7 +135,7 @@ SKIP: {
     TODO: {
           #
           # is_participant() give variable results on various ELM versions
-          # ELM 3.0 - 3.3.4 - best to treat is as broken
+          # ELM 3.0 - 3.3.4 under LDAP - best to treat is as broken
           #
            local($TODO) = 'reliable - is_participant()';
 
@@ -156,7 +157,7 @@ SKIP: {
     $participant_list->reset();
 
     if (@participants) {
-	is( exception {$participant_list->update({participants => \@participants}) => undef,
+	is( exception {$participant_list->update({participants => \@participants_sample}) => undef,
 		  } => undef, 'setting up a larger meeting - lives');
     }
     else {
