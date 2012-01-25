@@ -5,6 +5,7 @@ use Test::Fatal;
 
 use Elive;
 use Elive::Entity::Session;
+use Elive::Util;
 
 use lib '.';
 use t::Elive;
@@ -13,7 +14,6 @@ my $t = Test::More->builder();
 
 my $class = 'Elive::Entity::Session' ;
 
-use Carp; $SIG{__DIE__} = \&Carp::confess;
 use Scalar::Util;
 use Try::Tiny;
 
@@ -22,11 +22,26 @@ eval "use $MODULE";
 plan skip_all => "$MODULE not available for taint tests"
     if $@;
 
-plan tests => 17;
+plan tests => 21;
+
+taint_checking_ok();
+
+do {
+    my $string = 'gfdsgdfrg %^&%*( fdsfs';
+
+    is(exception {Elive::Util::_freeze($string, 'Str')} => undef,
+       '_freeze of untainted data -lives');
+
+    taint($string);
+
+    isnt(exception {Elive::Util::_freeze($string, 'Str')} => undef,
+       '_freeze of tainted data -lives');
+
+};
 
 SKIP: {
 
-    my $skippable = 17;
+    my $skippable = 18;
 
     my %result = t::Elive->test_connection(only => 'real');
     my $auth = $result{auth};
@@ -37,8 +52,6 @@ SKIP: {
     my $connection_class = $result{class};
     my $connection = $connection_class->connect(@$auth);
     Elive->connection($connection);
-
-    taint_checking_ok();
 
     my $session_start = time();
     my $session_end = $session_start + 15 * 10;
@@ -95,10 +108,16 @@ SKIP: {
     isnt( exception {Elive::Entity::Session->list(filter => "name = '$session_name_tainted'")} => undef,
 	'List with tainted filter - dies');
   
+    isnt( exception {Elive::Entity::Session->list(filter => "name = ".Elive::Entity::Session->quote($session_name_tainted))} => undef,
+	'List with tainted filter quoted - dies');
+  
     my $sessions;
 
     is( exception {$sessions = Elive::Entity::Session->list(filter => "name = '$session_name_clean'")} => undef,
 	'List with clean filter - lives');
+  
+    is( exception {Elive::Entity::Session->list(filter => "name = ".Elive::Entity::Session->quote($session_name_clean))} => undef,
+	'List with clean filter quoted - lives');
   
     is(scalar @$sessions, 1, 'list returns unique session');
 
