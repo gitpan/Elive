@@ -1,5 +1,15 @@
 Revision history for Elive
 
+1.24   28th February 2012
+       [Tested against Blackboard Collaborate 11.1.2  / ELM 3.5.0.]
+       [testing]
+       - soap-connect.t - raised max_version to 11.1.2
+       - soap-participant-list.t - long participant / stress-tests are hanging
+         under LDAP. I marked these tests as TODO and added an alarm-timeout.
+       elive_query
+        - removed disused _get_user() function.
+        - direct 'connection error ...' message to STDERR
+
 1.23    26th January 2012
         [enhancements]
         Elive::Entity
@@ -15,7 +25,7 @@ Revision history for Elive
         [testing]
         - Replaced Test::Builder->new with Test::More->builder
         00load.t, soap-connect.t:
-        - now bai if any sub tests fail
+        - now bail testing if any sub tests fail
         soap-session-participants.t, soap-participant-list.t:
         - reworked long participant list tests
 
@@ -26,7 +36,7 @@ Revision history for Elive
         - now produces a warning if an attempt is made to assign a
           moderator role to an invited guest.
         Elive::DAO:
-        - Added taintness checks to the is_changed() method; which mow dies
+        - Added taintness checks to the is_changed() method; which now dies
           if any tainted data is detected.
         - is_changed() now also warns if a primary key has been updated.
         elive_raise_meeting, elive_query, elive_lint_config:
@@ -132,8 +142,8 @@ Revision history for Elive
         - Elive::DAO - avoid attempting to cache weak (keyless) entities. This
           is for Elive::StandardV2's benefit, e.g. the serverVersions entity.
         [pod]
-        - Elive::Entity::ServerDetails - documented the  list() method. This
-          is useful for sites that running multiple session servers.
+        - Elive::Entity::ServerDetails - documented the list() method. This
+          is useful for sites that are running multiple session servers.
         [testing]
         - script-elive_query.t - removed serverDetails singleton test (there
           can be multiple servers).

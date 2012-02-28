@@ -171,7 +171,7 @@ them yourself, E.g.:
 
     $meeting->delete;
 
-=item deleted meeting may remain retrievable, but with the I<deleted> property to true.
+=item Recently deleted meetings may remain retrievable, but with the I<deleted> property to true.
 
 Meetings, Meeting Parameters, Server Parameters and recordings may remain
 accessible via the SOAP interface for a short period of time until they
@@ -260,7 +260,7 @@ Associates a preload with the given meeting-Id, or meeting object.
 sub add_preload {
     my ($self, $preload_id, %opt) = @_;
 
-    die 'usage: $meeting_obj->add_preload($preload || $preload_id)'
+    die 'usage: $meeting_obj->add_preload($preload)'
 	unless $preload_id;
 
     my %params = %{ $opt{param} || {} };
@@ -603,7 +603,7 @@ sub server_parameters {
 
     my $meeting = Elive::Entity::Meeting->retrieve($meeting_id);
     my $participant_list = $meeting->participant_list;
-    my $participants = $meeting->participants;
+    my $participants = $participant_list->participants;
 
 Utility method to return the participant_list associated with a meeting.
 See also L<Elive::Entity::ParticipantList>.

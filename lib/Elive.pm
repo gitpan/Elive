@@ -3,15 +3,15 @@ use warnings; use strict;
 
 =head1 NAME
 
-Elive - Elluminate Live! (c) Command Toolkit bindings
+Elive - Elluminate Live! (Blackboard Collaborate) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 1.23
+Version 1.24
 
 =cut
 
-our $VERSION = '1.23';
+our $VERSION = '1.24';
 
 use 5.008003;
 
@@ -34,7 +34,7 @@ participants:
 
     my $meeting_name = 'Meeting of the Smiths';
 
-    Elive->connect('http://someEllumServer.com/my_instance',
+    Elive->connect('https://someEllumServer.com/my_instance',
                    'serversupport', 'mypass');
 
     my $users = Elive::Entity::User->list(filter => "(lastName = 'Smith')");
@@ -67,7 +67,8 @@ managing users and groups.
 
 =head1 BACKGROUND
 
-Elluminate I<Live!> (c) is software for virtual online classrooms.
+Elluminate I<Live!> (Blackboard Collaborate) is software for virtual online
+classrooms.
 
 It is suitable for meetings, demonstrations web conferences, seminars
 and IT deployment, training and support.
@@ -87,7 +88,7 @@ the Entity Commands in the Command Toolkit.
 
 =head2 connect
 
-     Elive->connect('http://myServer.com/test', some_user => 'some_pass');
+     Elive->connect('https://myServer.com/test', some_user => 'some_pass');
      my $connection = Elive->connection;
 
 Connects to an Elluminate server instance. Dies if the connection could not
@@ -210,8 +211,8 @@ L<README> file.
 
 elive_query is a script for issuing basic sql-like queries on entities. It serves as a simple demonstration script, and can be used to confirm connectivity and operation of Elive.
 
-    % perl elive_query http://myserver.com/test -user sdk_user
-    Password: connecting to http://myserver.com/test...ok
+    % perl elive_query https://myserver.com/test -user sdk_user
+    Password: connecting to https://myserver.com/test...ok
     Elive query 1.xx - type 'help' for help
 
     elive> select address,version from serverDetails
@@ -375,7 +376,7 @@ assistance with the development of this module.
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2009-2011 David Warring, all rights reserved.
+Copyright 2009-2012 David Warring, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

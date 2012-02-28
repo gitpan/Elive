@@ -1,5 +1,5 @@
 ---
-abstract: 'Elluminate Live! (c) Command Toolkit bindings'
+abstract: 'Elluminate Live! (Blackboard Collaborate) Command Toolkit bindings'
 author:
   - 'David Warring <david.warring@gmail.com>'
 build_requires:
@@ -55,4 +55,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://dwarring@elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 1.23
+version: 1.24
