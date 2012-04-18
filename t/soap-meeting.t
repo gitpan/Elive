@@ -1,6 +1,6 @@
 #!perl -T
 use warnings; use strict;
-use Test::More tests => 32;
+use Test::More tests => 31;
 use Test::Fatal;
 
 use lib '.';
@@ -12,6 +12,7 @@ use Elive;
 use Elive::Entity::Meeting;
 use Elive::Entity::MeetingParameters;
 use Elive::Entity::ServerParameters;
+use version;
 
 use XML::Simple;
 
@@ -29,6 +30,12 @@ SKIP: {
     $connection = $connection_class->connect(@$auth);
     Elive->connection($connection);
 
+    my $server_details =  Elive->server_details
+	or die "unable to get server details - are all services running?";
+    our $version = version->declare( $server_details->version )->numify;
+    our $version_11_1_2 = version->declare( '11.1.2' )->numify;
+    our $elm_3_5_0_or_higher =  $version >= $version_11_1_2;
+
     my $meeting_start = time();
     my $meeting_end = $meeting_start + 900;
 
@@ -43,13 +50,6 @@ SKIP: {
 	end => $meeting_end,
 	privateMeeting => 1,
     );
-
-    if (1) {
-	$t->skip("can't modify restrictedMeeting property (known elm2.x problem)");
-    }
-    else {
-	$meeting_data{restrictedMeeting} = 1;
-    }
 
     my ($meeting) = $class->insert(\%meeting_data);
 
@@ -134,10 +134,13 @@ SKIP: {
     # check that we can access our meeting by user and date range.
     #
     TODO: {
-	local $TODO = 'listUserMeetingsByDate - broken under elm 3.0';
+	local $TODO;
+	$TODO = 'listUserMeetingsByDate - broken elm 3.0 - 3.4'
+	    unless $elm_3_5_0_or_higher;
+
 	my $user_meetings;
 	is( exception {
-	    my $user_meetings
+	    $user_meetings
 		= Elive::Entity::Meeting->list_user_meetings_by_date(
 		[$meeting_data{facilitatorId},
 		 $meeting_data{start},

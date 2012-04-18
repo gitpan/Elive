@@ -728,12 +728,14 @@ There are three types of preloads:
 
 =head2 Creating Preloads
 
-Preloads may be both uploaded from the client or server:
+Preloads may be:
 
-    # 1. upload a local file
+1. uploaded from a local file:
+
     my $preload1 = Elive::Entity::Preload->upload('c:\\Documents\slide1.wbd');
 
-    # 2. stream it ourselves
+2. uploaded from binary content:
+
     open ( my $fh, '<', 'c:\\Documents\slide2.wbd')
 	or die "unable to open preload file $!";
     my $content = do {local $/; $fh->binmode; <$fh>};
@@ -744,7 +746,8 @@ Preloads may be both uploaded from the client or server:
                      data => $content,
                    });
 
-    # 3. import a file on the Elluminate Live! server
+3. imported from a file on the Elluminate Live! server:
+
     my $preload3 = Elive::Entity::Preload
          ->import_from_server('/home/uploads/slide3.wbd');
 
@@ -774,16 +777,19 @@ Where C<fileName> is the path to the file to be uploaded.
 
 Preloads can then be added to sessions in a number of ways:
 
-    # 1. at session creation
+1. at session creation
+
     my $session = Elive::Entity->Session->create({
                            # ...
                            add_preload => $preload1,
                         });
 
-    # 2. when updating a session
+2. when updating a session
+
     $session->update({add_preload => $preload2});
 
-    # 3. via the add_preload() method
+3. via the add_preload() method
+
     $session->add_preload( $preload3 );
 
 A single preload can be shared between sessions:
@@ -837,8 +843,8 @@ any need to close or exit the session.
         my $recording_jnlp = $recordings[0]->buildJNLP(userId => $username);
     }
 
-Also note that recordings are not deleted, when you delete sessions. If you
-want to delete associated recordings when you delete sessions:
+Also note that recordings are not deleted, when you delete sessions. You
+may want to delete associated recordings when you delete sessions:
 
     my $recordings = $session->list_recordings;
     $session->delete;
@@ -1098,7 +1104,7 @@ The maximum number of cameras.
 
 =item * Meeting telephony is not yet supported
 
-=back
+=item * C<list()> method caveats
 
 Maintaining the L<Elive::Entity::Session> abstraction may involve fetches from
 several entities. This is mostly transparent, but does have some implications
@@ -1112,6 +1118,8 @@ for the C<list> method:
 lazily on a per record basis and may be considerably slower. This includes
 access to attributes of meeting parameters, server parameter and the
 participant list.
+
+=back
 
 =back
 
