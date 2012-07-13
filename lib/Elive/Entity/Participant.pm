@@ -8,6 +8,7 @@ extends 'Elive::Entity';
 
 use Scalar::Util;
 
+use Elive;
 use Elive::Util;
 use Elive::Entity::User;
 use Elive::Entity::Group;
@@ -85,7 +86,7 @@ sub BUILDARGS {
 	    }
 	}
 
-	if (try {$_->isa('Elive::Entity::InvitedGuests')}) {
+	if (try {$_->isa('Elive::Entity::InvitedGuest')}) {
 	    #
 	    # coerce to an invited guest
 	    #
@@ -95,6 +96,31 @@ sub BUILDARGS {
 		type => 2,
 	    }
 	}
+    }
+
+    my $reftype = Elive::Util::_reftype($_);
+    if ($reftype eq 'HASH') {
+	# already structured as a participant
+	my %spec = %$_;
+
+	my $type;
+	if ($spec{user}) {
+	    $spec{type} ||= 0;
+	}
+	elsif ($spec{group}) {
+	    $spec{type} ||= 1;
+	}
+	elsif ($spec{guest}) {
+	    $spec{type} ||= 2;
+	}
+
+	return \%spec if defined $spec{type};
+    }
+
+    if ($reftype) {
+	warn YAML::Syck::Dump({unbuildable_participant => $_})
+	    if Elive->debug;
+	die "unable to build participant from $reftype reference";
     }
 
     return $_ if Scalar::Util::reftype($_);
@@ -122,7 +148,7 @@ sub BUILDARGS {
 	my $id = $2;
 	my $roleId = $4;
 
-	$roleId = 3 unless defined $roleId;
+	$roleId = 3 unless defined $roleId && $roleId ne '';
 
 	if ( $is_group ) {
 	    $parse{group} = {groupId => $id};

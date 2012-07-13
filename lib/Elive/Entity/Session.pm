@@ -513,7 +513,7 @@ Deletes a completed or unwanted session from the Elluminate server.
     my $session = Elive::Entity::Session->retrieve( $session_id );
     $session->delete;
 
-Note that a session, will have its deleted property immediately set to true,
+Note that a session, will have its C<deleted> property immediately set to true,
 but may remain accessible for a short period of time until garbage collected.
 
 So to check for a deleted session:
@@ -541,6 +541,8 @@ sub delete {
 
 =head2 is_changed
 
+Returns a list of properties that have unsaved changes.
+
      my $session = Elive::Entity::Session->retrieve( $session_id);
      #
      # ..then later on
@@ -551,8 +553,8 @@ sub delete {
      # @changed will contained 'seats', plus any other unsaved updates.
      #
 
-Returns a list of properties that have unsaved changes. To avoid warnings, you
-will either need to call C<update> on the object to save the changes, or
+Destroyng an object with unsaved changes will cause a warning. To avoid this,
+you will either need to call C<update> on the object to save the changes, or
 C<revert> to discard the changes.
 
 =cut
@@ -663,8 +665,8 @@ L<Elive::Entity::Participant>. Each participant contains one of:
 
 =back
 
-Each participant will contain either an C<user>, C<group> or C<guest>object
-For example, to print the list of participants for a session:
+Each participant will contain either an C<user>, C<group> or C<guest>
+object. For example, to print the list of participants for a session:
 
     my $session = Elive::Entity::Session->retrieve($session_id);
     my $participants = $session->participants;
@@ -746,7 +748,7 @@ Preloads may be:
                      data => $content,
                    });
 
-3. imported from a file on the Elluminate Live! server:
+3. imported from a file residing on the Elluminate Live! server:
 
     my $preload3 = Elive::Entity::Preload
          ->import_from_server('/home/uploads/slide3.wbd');
@@ -758,7 +760,7 @@ extension, or you can supply, these details yourself:
     $preload2 =  Elive::Entity::Preload->upload({
                      name => 'slide2.wbd',
                      data => $content,
-                     type => 'preload',
+                     type => 'whiteboard',
                      mimeType => 'application/octet-stream',
                    });
 
@@ -767,7 +769,7 @@ The C<import_from_server> method also has an extended form:
     $preload3 =  Elive::Entity::Preload->import_from_server({
                      fileName =>'/home/uploads/slide3.wbd.tmp123'
                      ownerId => 357147617360,
-                     type => 'preload',
+                     type => 'whiteboard',
                      mimeType => 'application/octet-stream',
                    });
 
