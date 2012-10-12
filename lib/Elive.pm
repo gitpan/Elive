@@ -3,15 +3,15 @@ use warnings; use strict;
 
 =head1 NAME
 
-Elive - Elluminate Live! (Blackboard Collaborate) Command Toolkit bindings
+Elive - Elluminate Live! Manager (ELM) Command Toolkit bindings
 
 =head1 VERSION
 
-Version 1.27
+Version 1.28
 
 =cut
 
-our $VERSION = '1.27';
+our $VERSION = '1.28';
 
 use 5.008003;
 
@@ -61,16 +61,15 @@ participants:
 =head1 DESCRIPTION
 
 Elive is a set of Perl bindings and entity definitions for quick and easy
-integration with the Elluminate I<Live!> Manager application. It can be used
-to automate a range of tasks including setting up meetings and participants,
-managing users and groups.
+integration with the Elluminate I<Live!> Manager (ELM) application. It can
+be used to automate a range of tasks including setting up meetings and
+participants, as well as managing users and user groups.
 
 =head1 BACKGROUND
 
-Elluminate I<Live!> (Blackboard Collaborate) is software for virtual online
-classrooms.
+Elluminate I<Live!> is software for virtual online classrooms.
 
-It is suitable for meetings, demonstrations web conferences, seminars
+It is suitable for meetings, demonstrations, web conferences, seminars
 and IT deployment, training and support.
 
 Most management functions that can be performed via the web interface can
@@ -112,7 +111,7 @@ sub connect {
      $e1 = Elive->connection
          or warn 'no elive connection active';
 
-Returns the default Elive connection handle.
+Returns the current L<Elive::Connection::SDK> connection.
 
 =cut
 
@@ -124,6 +123,11 @@ sub connection {
 =head2 login
 
 Returns the login user for the default connection.
+
+    my $login = Elive->login;
+    say "logged in as: ".$login->loginName;
+
+See L<Elive::Entity::User>.
 
 =cut
 
@@ -140,7 +144,17 @@ sub login {
 
 =head2 server_details
 
-Returns the server details for the default connection.
+Returns the server details for the current connection. See L<Elive::Entity::ServerDetails>.
+
+    my $server = Elive->server_details;
+    printf("server %s is running Elluminate Live! version %s\n", $server->name, $server->version);
+
+There can potentially be multiple servers:
+
+    my @servers = Elive->server_details;
+    foreach my $server (@servers) {
+        printf("server %s is running Elluminate Live! version %s\n", $server->name, $server->version);
+    }
 
 =cut
 
@@ -150,13 +164,17 @@ sub server_details {
     my $connection = $opt{connection} || $class->connection
 	or die "not connected";
 
-    return $connection->server_details;
+    my @server_details = $connection->server_details;
+    return wantarray ? @server_details : $server_details[0]
 }
     
 =head2 disconnect
 
 Disconnects the default Elluminate connection. It is recommended that you
 do this prior to exiting your program.
+
+    Elive->disconnect;
+    exit(0);
 
 =cut
 
@@ -295,7 +313,7 @@ see the README file.
 
 =head2 Related CPAN Modules
 
-L<Elive::StandardV3> - This is a separate CPAN module that implements the alternate Elluminate I<Live!> Standard Bridge API (v3). 
+L<Elive::StandardV3> - this module implements the alternate Elluminate I<Live!> Standard Bridge API (v3). 
 
 =head2 Elluminate Documentation
 

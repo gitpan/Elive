@@ -7,7 +7,7 @@ use Carp;
 
 extends 'Elive::DAO';
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 =head1 NAME
 
@@ -252,7 +252,7 @@ sub quote {
 
 =item L<Elive::DAO> - base class
 
-=item L<Mouse> - Lightweight L<Moose> like class system
+=item L<Mouse> - Middle-weight L<Moose> like class system
 
 =back
 

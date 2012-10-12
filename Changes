@@ -1,5 +1,17 @@
 Revision history for Elive
 
+1.28   12th October 2012
+       [bug fixes]
+       elive_raise_meeting, script-elive_raise_meeting.t
+       - fixed handling of moderators. These were being downgraded to regular
+         participants. Added tests (bug introduced in 1.20)
+       Elive::Entity::InvitedGuest, soap-session-particiants.t
+       - added BUILDARGS method (it's never had one). Also added failing test.
+       [enhancements]
+       Elive:
+       - server_details() - Return all server(s) in a list context:
+         my @servers = Elive->server_details;
+
 1.27   14th July 2012
        [bug fixes]
        Elive::Entity::Participant
@@ -10,7 +22,7 @@ Revision history for Elive
          content. Elements may be subgroups (group objects) or user-ids
          (strings).
        [testing]
-       - dao-errors.t - now checks for specific errors
+       - dao-errors.t - now checks content of error messages
        - script-elive_lint_conf.t - tolerate perl 5.17.x depreciation warnings 
          (from XML::Simple <= 2.20).
        - soap-preload.t - cross-check imported preload sizes
