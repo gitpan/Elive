@@ -1,8 +1,7 @@
 package t::Elive::MockSOM;
 use warnings; use strict;
 
-use Class::Accessor;
-use base qw{Class::Accessor};
+use parent qw{Class::Accessor};
 
 __PACKAGE__->mk_accessors( qw{fault result paramsout} );
 
@@ -114,8 +113,7 @@ sub not_found {
 package t::Elive::MockSOMFault;
 use warnings; use strict;
 
-use Class::Accessor;
-use base qw{Class::Accessor};
+use parent qw{Class::Accessor};
 
 __PACKAGE__->mk_accessors( qw{faultstring result paramsout} );
 

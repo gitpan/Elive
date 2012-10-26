@@ -12,10 +12,11 @@ use Carp;
 
 use Elive;
 use Elive::Util;
-use Elive::Entity::Preload;
 use Elive::Entity::User;
 use Elive::Entity::Group;
 use Elive::Entity::Participant;
+use Elive::Entity::Preload;
+use Elive::Entity::Role;
 use Elive::Entity::Session;
 use Elive::View::Session;
 
@@ -59,10 +60,10 @@ elive_raise_meeting - Elluminate Live! Manager (ELM) meeting creation
                     user's username or user-id.
 
     '*group'      - a group of users. This can be either the group-name
-                    or group-id.
+                    or group-id. (elm3)
 
     'Display Name(loginName)'
-                  - a guest login, e.g. "Robert(bob@example.com)"
+                  - a guest login, e.g. "Robert(bob@example.com)" (elm3)
 
 =head2 Meeting Setup
 
@@ -122,7 +123,7 @@ elive_raise_meeting - Elluminate Live! Manager (ELM) meeting creation
 
 =head1 DESCRIPTION
 
-Creates meetings on an Elluminate I<Live!> (ELM) server.
+Creates meetings on an Elluminate I<Live!> Manager (ELM) server.
 
 =head1 SEE ALSO
 
@@ -464,7 +465,7 @@ sub _display_participant {
     my $type = $participant->type;
     my $str;
 
-    if (! $type)  {        # regular user
+    if (! $type)  {        # single participant
 	my $user_obj = $participant->user;
 	my $loginName = $user_obj->loginName;
 	my $email = $user_obj->email;
@@ -502,15 +503,15 @@ sub _display_participant {
 ########################################################################
 
 sub _get_users {
-    my @participants = grep {$_->role->roleId > 2} @_;
-    my @moderators = grep {$_->role->roleId <= 2} @_;
+    my @participants = grep {! $_->is_moderator} @_;
+    my @moderators = grep {$_->is_moderator} @_;
 
     my @users;
 
-    push (@users, map {{user => $_, role => 3}} __get_users(@participants))
+    push (@users, map {{user => $_, role => ${Elive::Entity::Role::PARTICIPANT}}} __get_users(@participants))
 	if @participants;
 
-    push (@users, map {{user => $_, role => 2}} __get_users(@moderators))
+    push (@users, map {{user => $_, role => ${Elive::Entity::Role::MODERATOR}}} __get_users(@moderators))
 	if @moderators;
 
     return @users;
@@ -558,15 +559,15 @@ sub __get_users {
 ########################################################################
 
 sub _get_groups {
-    my @participants = grep {$_->role->roleId > 2} @_;
-    my @moderators = grep {$_->role->roleId <= 2} @_;
+    my @participants = grep {!$_->is_moderator > 2} @_;
+    my @moderators = grep {$_->is_moderator} @_;
 
     my @groups;
 
-    push (@groups, map {{user => $_, role => 3}} __get_groups(@participants))
+    push (@groups, map {{user => $_, role => ${Elive::Entity::Role::PARTICIPANT}}} __get_groups(@participants))
 	if @participants;
 
-    push (@groups, map {{user => $_, role => 2}} __get_groups(@moderators))
+    push (@groups, map {{user => $_, role => ${Elive::Entity::Role::MODERATOR}}} __get_groups(@moderators))
 	if @moderators;
 
     return @groups;

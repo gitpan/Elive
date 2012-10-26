@@ -58,6 +58,13 @@ has 'type' => (is => 'rw', isa => 'Int',
 	       documentation => 'type of participant; 0:user, 1:group, 2:guest'
     );
 
+our ( $TYPE_USER, $TYPE_GROUP, $TYPE_GUEST );
+BEGIN {
+    $TYPE_USER  = 0;
+    $TYPE_GROUP = 1;
+    $TYPE_GUEST = 2;
+}
+
 sub BUILDARGS {
     my $class = shift;
     local ($_) = shift;
@@ -70,8 +77,8 @@ sub BUILDARGS {
 	    #
 	    return {
 		user => $_,
-		role => {roleId => 3},
-		type => 0,
+		role => {roleId => ${Elive::Entity::Role::PARTICIPANT}},
+		type => $TYPE_USER,
 	    }
 	}
 
@@ -81,8 +88,8 @@ sub BUILDARGS {
 	    #
 	    return {
 		group => $_,
-		role => {roleId => 3},
-		type => 1,
+		role => {roleId => ${Elive::Entity::Role::PARTICIPANT}},
+		type => $TYPE_GROUP,
 	    }
 	}
 
@@ -92,8 +99,8 @@ sub BUILDARGS {
 	    #
 	    return {
 		guest => $_,
-		role => {roleId => 3},
-		type => 2,
+		role => {roleId => ${Elive::Entity::Role::PARTICIPANT}},
+		type => $TYPE_GUEST,
 	    }
 	}
     }
@@ -105,13 +112,13 @@ sub BUILDARGS {
 
 	my $type;
 	if ($spec{user}) {
-	    $spec{type} ||= 0;
+	    $spec{type} ||= $TYPE_USER;
 	}
 	elsif ($spec{group}) {
-	    $spec{type} ||= 1;
+	    $spec{type} ||= $TYPE_GROUP;
 	}
 	elsif ($spec{guest}) {
-	    $spec{type} ||= 2;
+	    $spec{type} ||= $TYPE_GUEST;
 	}
 
 	return \%spec if defined $spec{type};
@@ -143,7 +150,7 @@ sub BUILDARGS {
           $}x) {
 
 	$parse{guest} = {displayName => $1, loginName => $2};
-	$parse{type} = 2;
+	$parse{type} = $TYPE_GUEST;
 
 	return \%parse;
     }
@@ -159,15 +166,16 @@ sub BUILDARGS {
 	my $id = $2;
 	my $roleId = $4;
 
-	$roleId = 3 unless defined $roleId && $roleId ne '';
+	$roleId = ${Elive::Entity::Role::PARTICIPANT}
+	    unless defined $roleId && $roleId ne '';
 
 	if ( $is_group ) {
 	    $parse{group} = {groupId => $id};
-	    $parse{type} = 1;
+	    $parse{type} = $TYPE_GROUP;
 	}
 	else {
 	    $parse{user} = {userId => $id};
-	    $parse{type} = 0;
+	    $parse{type} = $TYPE_USER;
 	}
 
 	$parse{role}{roleId} = $roleId;
@@ -193,15 +201,17 @@ Returns a participant. This can either be of type L<Elive::Entity::User> (type
 
 sub participant {
     my ($self) = @_;
-
-    return   (! $self->type)    ? $self->user
-           : ($self->type == 1) ? $self->group
-	   : $self->guest;
+ 
+    return (!defined $self->type || $self->type == $TYPE_USER) ? $self->user
+       : ($self->type == $TYPE_GROUP) ? $self->group
+       : ($self->type == $TYPE_GUEST) ? $self->guest
+       : do {warn "unknown participant type: ".$self->type;
+	     $self->user || $self->group || $self->guest};
 }
 
 =head2 is_moderator
 
-Utility method to exam or set a meeting participant's moderator privileges.
+Utility method to examine or set a meeting participant's moderator privileges.
 
     # does Bob have moderator privileges?
     my $is_moderator = $bob->is_moderator;
@@ -216,7 +226,7 @@ sub is_moderator {
 
     my $role_id;
 
-    if ($self->type && $self->type == 2) {
+    if (defined $self->type && $self->type == $TYPE_GUEST) {
 	#
 	# invited guests cannot be moderators
 	return;
@@ -224,7 +234,9 @@ sub is_moderator {
 
     if (@_) {
 	my $is_moderator = shift;
-	$role_id = $is_moderator? 2 : 3;
+	$role_id = $is_moderator
+	    ? ${Elive::Entity::Role::MODERATOR}
+	    : ${Elive::Entity::Role::PARTICIPANT};
 
 	$self->role( $role_id )
 	    unless $role_id == $self->role->stringify;
@@ -233,7 +245,7 @@ sub is_moderator {
 	$role_id = $self->role->stringify;
     }
 
-    return $role_id && $role_id <= 2;
+    return defined $role_id && $role_id != ${Elive::Entity::Role::PARTICIPANT};
 }
 
 =head2 stringify
@@ -251,21 +263,20 @@ sub stringify {
     $data = $self->BUILDARGS($data);
     my $role_id = Elive::Entity::Role->stringify( $data->{role} );
 
-    if ($data->{type} && $data->{type} == 2) {
+    if (!defined $data->{type} || $data->{type} == $TYPE_USER) {
+	# user => 'userId'
+	return Elive::Entity::User->stringify($data->{user}).'='.$role_id;
+    }
+    elsif ($data->{type} == $TYPE_GUEST) {
 	# guest => 'displayName(loginName)'
 	my $guest_str =  Elive::Entity::InvitedGuest->stringify($data->{guest});
 
 	Carp::carp ("ignoring moderator role for invited guest: $guest_str")
-	    if defined $role_id && $role_id <= 2;
+	    if defined $role_id && $role_id != ${Elive::Entity::Role::PARTICIPANT};
 
 	return $guest_str;
     }
-
-    if (! $data->{type} ) {
-	# user => 'userId'
-	return Elive::Entity::User->stringify($data->{user}).'='.$role_id;
-    }
-    elsif ($data->{type} == 1) {
+    elsif ($data->{type} == $TYPE_GROUP) {
 	# group => '*groupId'
 	return Elive::Entity::Group->stringify($data->{group}).'='.$role_id;
     }
