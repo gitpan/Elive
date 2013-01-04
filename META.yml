@@ -41,7 +41,6 @@ requires:
   Mouse: 0.81
   Mouse::Util::TypeConstraints: 0
   Pod::Usage: 1.33
-  Readonly: 0
   SOAP::Lite: 0.712
   Scalar::Util: 0
   Term::ReadKey: 0
@@ -57,4 +56,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 1.29
+version: 1.30

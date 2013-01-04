@@ -4,7 +4,7 @@ use warnings; use strict;
 use Mouse;
 use Mouse::Util::TypeConstraints;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 use parent 'Elive::DAO::_Base';
 
@@ -539,8 +539,8 @@ sub url {
              copy => 1,             # return a simple blessed uncached object.
            );
 
-Abstract method to construct an entity from data. A copy is made of the data
-for use by the C<is_changed> and C<revert> methods.
+Abstract method to construct a data mapped entity. A copy is made of the
+data for use by the C<is_changed> and C<revert> methods.
 
 =cut
 
@@ -1612,8 +1612,9 @@ BEGIN {
 
     subtype 'HiResDate'
 	=> as 'Int'
-	=> where {m{^\d+$} && (!$_ || length($_) > 10
-	   or Carp::carp "doesn't look like a hi-res date: $_")}
+	=> where {m{^-?\d+$}
+               && (!$_ || (length($_) > 10 && $_ > 0)
+		   or Carp::carp "doesn't look like a hi-res date: $_")}
         => message {"invalid date: $_"};
 }
 
