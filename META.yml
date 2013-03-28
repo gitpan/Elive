@@ -6,7 +6,7 @@ build_requires:
   ExtUtils::MakeMaker: 6.59
   File::Temp: 0
   Test::Fatal: 0
-  Test::More: 0
+  Test::More: 0.98
   Test::Warn: 0
   version: 0
 configure_requires:
@@ -56,4 +56,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: https://elive.svn.sourceforge.net/svnroot/elive/trunk/Elive
-version: 1.30
+version: 1.31
